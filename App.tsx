@@ -29,7 +29,7 @@ function AppInner({navigationRef}: {navigationRef: React.RefObject<NavigationCon
       return;
     }
     try {
-      navigationRef.current?.navigate('StudentApp', {screen: 'Certificates'});
+      navigationRef.current?.navigate('StudentApp', {screen: 'Dashboard'});
     } catch (e) {
       console.warn('[Nav] Navigate failed:', e);
     }
@@ -39,7 +39,7 @@ function AppInner({navigationRef}: {navigationRef: React.RefObject<NavigationCon
   // Re-attempt when auth resolves
   useEffect(() => {
     if (!loading && notificationPending.current) {
-      goToCertificates();
+      setTimeout(() => goToCertificates(), 20000);
     }
   }, [loading, role]);
 
@@ -55,6 +55,7 @@ function AppInner({navigationRef}: {navigationRef: React.RefObject<NavigationCon
     messaging().getInitialNotification().then(remoteMessage => {
       if (remoteMessage) {
         notificationPending.current = true;
+        goToCertificates();
       }
     });
 

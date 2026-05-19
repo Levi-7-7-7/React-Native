@@ -1,11 +1,9 @@
 import React, {useState, useEffect, useMemo} from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  RefreshControl, Alert, ActivityIndicator, StatusBar,
-  Platform, PermissionsAndroid,
+  RefreshControl, Alert, ActivityIndicator, StatusBar, Linking,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import ReactNativeBlobUtil from 'react-native-blob-util';
 import axiosInstance from '../api/axiosInstance';
 import {useAuth} from '../context/AuthContext';
 import {calcCappedPoints, passThreshold} from '../utils/calcPoints';
@@ -14,65 +12,16 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 
 const FILTERS = ['all', 'approved', 'pending', 'rejected'];
 
-function isPdf(url: string): boolean {
-  const lower = url.toLowerCase().split('?')[0];
-  return lower.endsWith('.pdf') || lower.includes('/pdf');
-}
-
-async function requestAndroidStorage(): Promise<boolean> {
-  if (Platform.OS !== 'android') return true;
-  if ((Platform.Version as number) >= 33) return true;
-  const granted = await PermissionsAndroid.request(
-    PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
-    {
-      title: 'Storage Permission',
-      message: 'Needed to save certificates to your Downloads folder.',
-      buttonPositive: 'Allow',
-    },
-  );
-  return granted === PermissionsAndroid.RESULTS.GRANTED;
-}
-
-const SUBFOLDER = 'Activity Point Certificates';
-
-async function downloadFile(fileUrl: string, fileName: string, type: 'pdf' | 'image'): Promise<void> {
-  const ext = type === 'pdf' ? '.pdf' : '.jpg';
-  const mime = type === 'pdf' ? 'application/pdf' : 'image/jpeg';
-  const safeName = fileName.replace(/[^a-zA-Z0-9_\-\.]/g, '_') + ext;
-
-  if (Platform.OS === 'android') {
-    const folderPath = `${ReactNativeBlobUtil.fs.dirs.DownloadDir}/${SUBFOLDER}`;
-    const folderExists = await ReactNativeBlobUtil.fs.isDir(folderPath);
-    if (!folderExists) {
-      await ReactNativeBlobUtil.fs.mkdir(folderPath);
+/** Opens a certificate URL in the device's browser / Drive / built-in viewer */
+const openFile = (url: string) => {
+  Linking.canOpenURL(url).then(supported => {
+    if (supported) {
+      Linking.openURL(url);
+    } else {
+      Alert.alert('Error', 'Cannot open this file on your device.');
     }
-    const destPath = `${folderPath}/${safeName}`;
-
-    // NOTE: do NOT use fileCache:true — it overrides `path` and sends
-    // the file to the app cache directory instead of the Downloads folder.
-    await ReactNativeBlobUtil.config({
-      path: destPath,
-      addAndroidDownloads: {
-        useDownloadManager: true,
-        notification: true,
-        title: safeName,
-        description: 'Activity Point Certificate',
-        mime,
-        mediaScannable: true, // makes file visible in Files app immediately
-        path: destPath,       // DownloadManager also needs path here
-      },
-    }).fetch('GET', fileUrl);
-  } else {
-    // iOS — save to Documents (accessible via the Files app)
-    const folderPath = `${ReactNativeBlobUtil.fs.dirs.DocumentDir}/${SUBFOLDER}`;
-    const folderExists = await ReactNativeBlobUtil.fs.isDir(folderPath);
-    if (!folderExists) {
-      await ReactNativeBlobUtil.fs.mkdir(folderPath);
-    }
-    const destPath = `${folderPath}/${safeName}`;
-    await ReactNativeBlobUtil.config({path: destPath}).fetch('GET', fileUrl);
-  }
-}
+  });
+};
 
 export default function CertificatesScreen({navigation}: any) {
   const {user} = useAuth();
@@ -83,8 +32,6 @@ export default function CertificatesScreen({navigation}: any) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
-  const [downloadingAll, setDownloadingAll] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -138,63 +85,10 @@ export default function CertificatesScreen({navigation}: any) {
     });
   };
 
-  const handleDownloadOne = async (cert: any) => {
-    if (downloadingId) return;
+  /** Download = open in browser; system handles saving */
+  const handleDownloadOne = (cert: any) => {
     if (!cert.fileUrl) { Alert.alert('No file', 'No file attached to this certificate.'); return; }
-    const ok = await requestAndroidStorage();
-    if (!ok) { Alert.alert('Permission denied', 'Storage permission is required.'); return; }
-    setDownloadingId(cert._id);
-    try {
-      const type = isPdf(cert.fileUrl) ? 'pdf' : 'image';
-      const name = cert.eventName || cert.subcategory || `certificate_${cert._id}`;
-      await downloadFile(cert.fileUrl, name, type);
-      Alert.alert(
-        'Downloaded ✓',
-        Platform.OS === 'android'
-          ? `Saved to Downloads › Activity Point Certificates › ${name.replace(/[^a-zA-Z0-9_\-\.]/g, '_')}${isPdf(cert.fileUrl) ? '.pdf' : '.jpg'}`
-          : 'Saved to Files › Activity Point Certificates',
-      );
-    } catch (err: any) {
-      Alert.alert('Download failed', err?.message || 'Please try again.');
-    } finally {
-      setDownloadingId(null);
-    }
-  };
-
-  const handleDownloadAll = async () => {
-    const withFiles = certificates.filter(c => c.fileUrl);
-    if (!withFiles.length) { Alert.alert('No files', 'No certificates with attached files.'); return; }
-    const ok = await requestAndroidStorage();
-    if (!ok) { Alert.alert('Permission denied', 'Storage permission is required.'); return; }
-    Alert.alert(
-      'Download All',
-      `Download all ${withFiles.length} certificate${withFiles.length !== 1 ? 's' : ''} to Downloads?`,
-      [
-        {text: 'Cancel', style: 'cancel'},
-        {
-          text: 'Download',
-          onPress: async () => {
-            setDownloadingAll(true);
-            let ok2 = 0; let fail = 0;
-            for (const cert of withFiles) {
-              try {
-                const type = isPdf(cert.fileUrl) ? 'pdf' : 'image';
-                const name = cert.eventName || cert.subcategory || `certificate_${cert._id}`;
-                await downloadFile(cert.fileUrl, name, type);
-                ok2++;
-              } catch { fail++; }
-            }
-            setDownloadingAll(false);
-            Alert.alert(
-              'Download Complete',
-              fail === 0
-                ? `All ${ok2} certificate${ok2 !== 1 ? 's' : ''} saved to Downloads › Activity Point Certificates.`
-                : `${ok2} saved, ${fail} failed. Check your connection and try again.`,
-            );
-          },
-        },
-      ],
-    );
+    openFile(cert.fileUrl);
   };
 
   const handleCancelCert = (cert: any) => {
@@ -237,24 +131,8 @@ export default function CertificatesScreen({navigation}: any) {
           />
         }>
 
-        {/* Title + Download All */}
-        <View style={styles.pageTitleRow}>
-          <Text style={[styles.pageTitle, {color: colors.primary}]}>My Certificates</Text>
-          {certificates.some(c => c.fileUrl) && (
-            <TouchableOpacity
-              style={[styles.downloadAllBtn, {backgroundColor: colors.primaryMuted, borderColor: colors.primaryLight}, downloadingAll && {opacity: 0.5}]}
-              onPress={handleDownloadAll}
-              disabled={downloadingAll}>
-              {downloadingAll
-                ? <ActivityIndicator size="small" color={colors.primary} />
-                : <>
-                    <MaterialCommunityIcons name="download-multiple" size={16} color={colors.primary} />
-                    <Text style={[styles.downloadAllText, {color: colors.primary}]}>All</Text>
-                  </>
-              }
-            </TouchableOpacity>
-          )}
-        </View>
+        {/* Title */}
+        <Text style={[styles.pageTitle, {color: colors.primary}]}>My Certificates</Text>
 
         {/* Summary card */}
         <View style={[styles.summaryCard, {backgroundColor: colors.cardBlue}]}>
@@ -308,7 +186,6 @@ export default function CertificatesScreen({navigation}: any) {
         ) : (
           filteredCertificates.map(cert => {
             const {bg: badgeBg, text: badgeText} = getStatusColors(cert.status);
-            const isDownloading = downloadingId === cert._id;
             const isDeleting = deletingId === cert._id;
             return (
               <View key={cert._id} style={[styles.certCard, {backgroundColor: colors.card}]}>
@@ -374,16 +251,10 @@ export default function CertificatesScreen({navigation}: any) {
                   )}
                   {cert.fileUrl && (
                     <TouchableOpacity
-                      style={[styles.actionBtn, {backgroundColor: colors.primaryMuted}, isDownloading && styles.btnDisabled]}
-                      onPress={() => handleDownloadOne(cert)}
-                      disabled={isDownloading || downloadingAll}>
-                      {isDownloading
-                        ? <ActivityIndicator size="small" color={colors.primary} />
-                        : <>
-                            <MaterialCommunityIcons name="download-outline" size={16} color={colors.primary} />
-                            <Text style={[styles.actionBtnText, {color: colors.primary}]}>Save</Text>
-                          </>
-                      }
+                      style={[styles.actionBtn, {backgroundColor: colors.primaryMuted}]}
+                      onPress={() => handleDownloadOne(cert)}>
+                      <MaterialCommunityIcons name="open-in-new" size={16} color={colors.primary} />
+                      <Text style={[styles.actionBtnText, {color: colors.primary}]}>Open</Text>
                     </TouchableOpacity>
                   )}
                   {cert.status?.toLowerCase() === 'pending' && (
@@ -414,10 +285,7 @@ const styles = StyleSheet.create({
   safeArea: {flex: 1},
   container: {flex: 1},
   content: {padding: 16, paddingBottom: 24},
-  pageTitleRow: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12},
-  pageTitle: {fontSize: 22, fontWeight: '800'},
-  downloadAllBtn: {flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 10, borderWidth: 1.5},
-  downloadAllText: {fontSize: 13, fontWeight: '700'},
+  pageTitle: {fontSize: 22, fontWeight: '800', marginBottom: 12},
   summaryCard: {borderRadius: 16, padding: 16, flexDirection: 'row', marginBottom: 14, shadowColor: '#1e3a8a', shadowOffset: {width: 0, height: 4}, shadowOpacity: 0.25, shadowRadius: 8, elevation: 6},
   summaryLeft: {flex: 1},
   summaryPoints: {fontSize: 32, fontWeight: '800', color: '#fff'},

@@ -1,13 +1,13 @@
 package com.activitypointsnative
 
-import android.animation.AnimatorListenerAdapter
-import android.animation.AnimatorSet
-import android.animation.ObjectAnimator
+// import android.animation.AnimatorListenerAdapter
+// import android.animation.AnimatorSet
+// import android.animation.ObjectAnimator
 import android.content.Intent
-import android.os.Build
+// import android.os.Build
 import android.os.Bundle
-import android.view.View
-import android.view.animation.AnticipateInterpolator
+// import android.view.View
+// import android.view.animation.AnticipateInterpolator
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -21,11 +21,11 @@ class MainActivity : ReactActivity() {
   override fun createReactActivityDelegate(): ReactActivityDelegate =
       DefaultReactActivityDelegate(this, mainComponentName, fabricEnabled)
 
-  override fun onCreate(savedInstanceState: Bundle?) {
+   override fun onCreate(savedInstanceState: Bundle?) {    
     val splashScreen = installSplashScreen()
     super.onCreate(null) // null prevents state restore crash on cold start
 
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+   /* if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
       splashScreen.setOnExitAnimationListener { splashScreenViewProvider ->
         val splashScreenView = splashScreenViewProvider.view
         val iconView = splashScreenViewProvider.iconView
@@ -62,8 +62,8 @@ class MainActivity : ReactActivity() {
     // ✅ FIX: When app is cold-started from a killed state via FCM notification,
     // store the launching intent and re-deliver it once the activity is ready.
     // Without this, the intent arrives before the JS bridge is initialised → crash.
-    intent?.let { handleIntent(it) }
-  }
+    intent?.let { handleIntent(it) }  */
+  } 
 
   override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)

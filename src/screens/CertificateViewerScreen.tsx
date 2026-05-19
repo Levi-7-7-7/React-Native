@@ -1,18 +1,16 @@
 /**
  * CertificateViewerScreen
  *
- * In-app viewer for certificates. Supports:
- *   • Images — rendered with react-native Image (pan + zoom via ScrollView)
- *   • PDFs   — rendered with react-native-pdf (native renderer, no WebView)
+ * Supports:
+ *   • Images — rendered inline with react-native Image (pan + zoom via ScrollView)
+ *   • PDFs   — opened externally via Linking (browser / Google Drive / built-in viewer)
  *
  * Navigation param: { fileUrl: string; fileName?: string }
  *
- * Dependencies:
- *   react-native-pdf         ← npm install react-native-pdf  (+ pod install on iOS)
- *   react-native-blob-util   ← already in package.json (also a peer dep of rn-pdf)
+ * No native PDF or blob packages needed.
  */
 
-import React, {useState} from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -21,16 +19,12 @@ import {
   ActivityIndicator,
   Alert,
   StatusBar,
-  Platform,
   ScrollView,
   Image,
-  PermissionsAndroid,
   Dimensions,
   Linking,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import Pdf from 'react-native-pdf';
-import ReactNativeBlobUtil from 'react-native-blob-util';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import {useTheme} from '../theme';
 
@@ -55,106 +49,22 @@ function isImage(url: string): boolean {
   );
 }
 
-async function requestAndroidStorage(): Promise<boolean> {
-  if (Platform.OS !== 'android') return true;
-  // Android 10+ (API 29+): DownloadManager has system-level access to the
-  // public Downloads folder — WRITE_EXTERNAL_STORAGE is not needed.
-  if ((Platform.Version as number) >= 29) return true;
-  // Android 9 and below: need the permission explicitly.
-  const granted = await PermissionsAndroid.request(
-    PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
-    {
-      title: 'Storage Permission',
-      message: 'Needed to save the certificate to your Downloads folder.',
-      buttonPositive: 'Allow',
-    },
-  );
-  return granted === PermissionsAndroid.RESULTS.GRANTED;
-}
+const openInBrowser = (url: string) => {
+  Linking.canOpenURL(url).then(supported => {
+    if (supported) {
+      Linking.openURL(url);
+    } else {
+      Alert.alert('Error', 'Cannot open this link on your device.');
+    }
+  });
+};
 
 export default function CertificateViewerScreen({route, navigation}: any) {
   const {colors} = useTheme();
   const {fileUrl, fileName = 'certificate'} = route.params ?? {};
 
-  // PDF state
-  const [pdfLoaded, setPdfLoaded] = useState(false);
-  const [pdfError, setPdfError] = useState(false);
-  const [pdfPage, setPdfPage] = useState(1);
-  const [pdfTotal, setPdfTotal] = useState(0);
-
-  // Download state
-  const [downloading, setDownloading] = useState(false);
-
   const type = isPdf(fileUrl) ? 'pdf' : isImage(fileUrl) ? 'image' : 'unknown';
 
-  // ── Download ──────────────────────────────────────────────────────────────
-  const handleDownload = async () => {
-    if (downloading) return;
-    const ok = await requestAndroidStorage();
-    if (!ok) {
-      Alert.alert('Permission denied', 'Storage permission is required to download files.');
-      return;
-    }
-    setDownloading(true);
-    try {
-      const ext = type === 'pdf' ? '.pdf' : type === 'image' ? '.jpg' : '';
-      const safeName =
-        (fileName || 'certificate').replace(/[^a-zA-Z0-9_\-\.]/g, '_') + ext;
-      const mime = type === 'pdf' ? 'application/pdf' : 'image/jpeg';
-
-      if (Platform.OS === 'android') {
-        const subfolder = 'Activity Point Certificates';
-        const downloadDir = ReactNativeBlobUtil.fs.dirs.DownloadDir;
-        const folderPath = `${downloadDir}/${subfolder}`;
-        const destPath = `${folderPath}/${safeName}`;
-
-        // On Android 10+ the DownloadManager creates the subfolder for us.
-        // On Android 9 and below we need to mkdir ourselves.
-        if ((Platform.Version as number) < 29) {
-          const exists = await ReactNativeBlobUtil.fs.isDir(folderPath);
-          if (!exists) {
-            await ReactNativeBlobUtil.fs.mkdir(folderPath);
-          }
-        }
-
-        await ReactNativeBlobUtil.config({
-          addAndroidDownloads: {
-            useDownloadManager: true,
-            notification: true,
-            title: safeName,
-            description: 'Activity Point Certificate',
-            mime,
-            path: destPath,
-            mediaScannable: true,
-          },
-        }).fetch('GET', fileUrl);
-
-        Alert.alert(
-          'Downloaded ✓',
-          `Saved to:\nDownloads › Activity Point Certificates › ${safeName}`,
-        );
-      } else {
-        // iOS — save to Documents (accessible via Files app)
-        const folderPath = `${ReactNativeBlobUtil.fs.dirs.DocumentDir}/Activity Point Certificates`;
-        const destPath = `${folderPath}/${safeName}`;
-        const exists = await ReactNativeBlobUtil.fs.isDir(folderPath);
-        if (!exists) {
-          await ReactNativeBlobUtil.fs.mkdir(folderPath);
-        }
-        await ReactNativeBlobUtil.config({path: destPath}).fetch('GET', fileUrl);
-        Alert.alert(
-          'Downloaded ✓',
-          `Saved to Files › Activity Point Certificates › ${safeName}`,
-        );
-      }
-    } catch (err: any) {
-      Alert.alert('Download failed', err?.message || 'Please try again.');
-    } finally {
-      setDownloading(false);
-    }
-  };
-
-  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={[styles.safe, {backgroundColor: colors.bg}]} edges={['top']}>
       <StatusBar barStyle={colors.statusBar} backgroundColor={colors.bg} />
@@ -173,26 +83,13 @@ export default function CertificateViewerScreen({route, navigation}: any) {
           <Text style={[styles.headerTitle, {color: colors.text}]} numberOfLines={1}>
             {fileName || 'Certificate'}
           </Text>
-          {type === 'pdf' && pdfLoaded && pdfTotal > 0 && (
-            <Text style={[styles.pageCounter, {color: colors.textMuted}]}>
-              {pdfPage} / {pdfTotal}
-            </Text>
-          )}
         </View>
 
+        {/* Open externally — works for both PDFs and images */}
         <TouchableOpacity
-          style={[
-            styles.downloadBtn,
-            {backgroundColor: colors.primaryMuted},
-            downloading && {opacity: 0.5},
-          ]}
-          onPress={handleDownload}
-          disabled={downloading}>
-          {downloading ? (
-            <ActivityIndicator size="small" color={colors.primary} />
-          ) : (
-            <MaterialCommunityIcons name="download" size={22} color={colors.primary} />
-          )}
+          style={[styles.actionBtn, {backgroundColor: colors.primaryMuted}]}
+          onPress={() => openInBrowser(fileUrl)}>
+          <MaterialCommunityIcons name="open-in-new" size={22} color={colors.primary} />
         </TouchableOpacity>
       </View>
 
@@ -225,66 +122,42 @@ export default function CertificateViewerScreen({route, navigation}: any) {
           />
         </ScrollView>
       ) : type === 'pdf' ? (
-        /* ── PDF viewer — react-native-pdf (native renderer, no WebView) ── */
-        <View style={styles.pdfContainer}>
-          {/* Loading overlay — hidden once PDF is ready */}
-          {!pdfLoaded && !pdfError && (
-            <View
-              style={[
-                styles.center,
-                StyleSheet.absoluteFill,
-                {backgroundColor: colors.bg},
-              ]}>
-              <ActivityIndicator size="large" color={colors.primary} />
-              <Text style={[styles.loadingText, {color: colors.textMuted}]}>
-                Loading PDF…
-              </Text>
-            </View>
-          )}
+        /* ── PDF — open externally (Google Drive / Chrome / built-in viewer) ── */
+        <View style={[styles.center, {backgroundColor: colors.bg}]}>
+          <MaterialCommunityIcons
+            name="file-pdf-box"
+            size={80}
+            color="#ef4444"
+          />
+          <Text style={[styles.pdfName, {color: colors.text}]} numberOfLines={2}>
+            {fileName}
+          </Text>
+          <Text style={[styles.pdfHint, {color: colors.textMuted}]}>
+            PDF files open in your browser or Google Drive.
+          </Text>
 
-          {/* Error state */}
-          {pdfError && (
-            <View style={[styles.center, {flex: 1, backgroundColor: colors.bg}]}>
-              <MaterialCommunityIcons name="file-pdf-box" size={60} color="#ef4444" />
-              <Text style={[styles.errText, {color: colors.textMuted}]}>
-                Could not display this PDF.
-              </Text>
-              <Text style={[styles.errSub, {color: colors.textMuted}]}>
-                Try downloading it or open it in your browser.
-              </Text>
-              <TouchableOpacity
-                style={[styles.openBrowserBtn, {backgroundColor: colors.primary}]}
-                onPress={() => Linking.openURL(fileUrl)}>
-                <MaterialCommunityIcons name="open-in-new" size={18} color="#fff" />
-                <Text style={styles.openBrowserText}>Open in Browser</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          <TouchableOpacity
+            style={[styles.openBtn, {backgroundColor: colors.primary}]}
+            onPress={() => openInBrowser(fileUrl)}>
+            <MaterialCommunityIcons name="open-in-new" size={20} color="#fff" />
+            <Text style={styles.openBtnText}>Open PDF</Text>
+          </TouchableOpacity>
 
-          {/* The Pdf component uses Android PdfRenderer / iOS CGPDFDocument natively.
-              It downloads to cache internally so there is no WebView download trigger. */}
-          {!pdfError && (
-            <Pdf
-              source={{uri: fileUrl, cache: true}}
-              style={[styles.pdf, !pdfLoaded && styles.hidden]}
-              onLoadComplete={(pages, _path) => {
-                setPdfTotal(pages);
-                setPdfLoaded(true);
-              }}
-              onPageChanged={(page, _pages) => setPdfPage(page)}
-              onError={(_error) => {
-                setPdfError(true);
-                setPdfLoaded(true);
-              }}
-              enablePaging={false}
-              horizontal={false}
-              enableAntialiasing
-              trustAllCerts={false}
-            />
-          )}
+          <TouchableOpacity
+            style={[styles.outlineBtn, {borderColor: colors.primary}]}
+            onPress={() => {
+              // Google Drive viewer fallback for direct URLs
+              const driveUrl = `https://drive.google.com/viewerng/viewer?embedded=true&url=${encodeURIComponent(fileUrl)}`;
+              openInBrowser(driveUrl);
+            }}>
+            <MaterialCommunityIcons name="google-drive" size={18} color={colors.primary} />
+            <Text style={[styles.outlineBtnText, {color: colors.primary}]}>
+              Open with Google Drive
+            </Text>
+          </TouchableOpacity>
         </View>
       ) : (
-        /* ── Unknown type — attempt to display as image ── */
+        /* ── Unknown type — try as image, fallback to browser ── */
         <ScrollView
           style={{flex: 1, backgroundColor: '#000'}}
           contentContainerStyle={styles.imageScrollContent}
@@ -299,7 +172,8 @@ export default function CertificateViewerScreen({route, navigation}: any) {
             onError={() =>
               Alert.alert(
                 'Unsupported format',
-                'Cannot preview this file type. Try downloading it.',
+                'Cannot preview this file type.',
+                [{text: 'Open in Browser', onPress: () => openInBrowser(fileUrl)}, {text: 'OK'}],
               )
             }
           />
@@ -322,34 +196,50 @@ const styles = StyleSheet.create({
   backBtn: {padding: 6},
   headerCenter: {flex: 1},
   headerTitle: {fontSize: 16, fontWeight: '700'},
-  pageCounter: {fontSize: 11, marginTop: 2},
-  downloadBtn: {padding: 8, borderRadius: 10},
-  pdfContainer: {flex: 1},
-  pdf: {
-    flex: 1,
-    width: SCREEN_W,
-  },
-  hidden: {opacity: 0},
+  actionBtn: {padding: 8, borderRadius: 10},
   center: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 10,
-    padding: 24,
+    gap: 14,
+    padding: 32,
   },
-  loadingText: {marginTop: 10, fontSize: 14},
-  errText: {fontSize: 15, fontWeight: '600', textAlign: 'center'},
-  errSub: {fontSize: 13, textAlign: 'center', marginTop: 4},
-  openBrowserBtn: {
+  pdfName: {
+    fontSize: 16,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  pdfHint: {
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  openBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginTop: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 10,
+    gap: 8,
+    marginTop: 8,
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    borderRadius: 12,
+    minWidth: 180,
+    justifyContent: 'center',
   },
-  openBrowserText: {color: '#fff', fontSize: 14, fontWeight: '600'},
+  openBtnText: {color: '#fff', fontSize: 15, fontWeight: '700'},
+  outlineBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    minWidth: 180,
+    justifyContent: 'center',
+  },
+  outlineBtnText: {fontSize: 14, fontWeight: '600'},
+  errText: {fontSize: 15, fontWeight: '600', textAlign: 'center'},
   imageScrollContent: {
     flexGrow: 1,
     alignItems: 'center',

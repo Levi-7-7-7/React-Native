@@ -104,13 +104,11 @@ export default function LoginScreen({navigation}: any) {
                 <TouchableOpacity
                   style={styles.eyeBtn}
                   onPress={() => setShowPassword(!showPassword)}>
-                  <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                    <MaterialCommunityIcons
-                      name={showPassword ? 'eye-off-outline' : 'eye-outline'}
-                      size={22}
-                      color="#6b7280"
-                    />
-                  </TouchableOpacity>
+                  <MaterialCommunityIcons
+                    name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                    size={22}
+                    color="#6b7280"
+                  />
                 </TouchableOpacity>
               </View>
             </>

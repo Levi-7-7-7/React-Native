@@ -9,10 +9,7 @@ import DateTimePicker, {
   DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
 import {launchImageLibrary, launchCamera} from 'react-native-image-picker';
-import {
-  pick,
-  types,
-} from '@react-native-documents/picker';
+import {pick, types} from '@react-native-documents/picker';
 import axiosInstance from '../api/axiosInstance';
 import {useTheme, Colors} from '../theme';
 
@@ -358,44 +355,6 @@ export default function UploadCertificateScreen({navigation}: any) {
     validateAndSet(result.assets[0]);
   };
 
-  const pickPdf = async () => {
-    try {
-      const results = await pick({
-        type: [types.pdf],
-        allowMultiSelection: false,
-      });
-
-      if (!results || results.length === 0) {
-        return;
-      }
-
-      const file = results[0];
-
-      validateAndSet({
-        uri: file.uri,
-        type: file.type || 'application/pdf',
-        fileName: file.name || 'document.pdf',
-        fileSize: file.size || 0,
-      });
-
-    } catch (err: any) {
-      console.log('PDF PICKER ERROR:', err);
-
-      // User cancelled
-      if (
-        err?.code === 'DOCUMENT_PICKER_CANCELED' ||
-        err?.message?.toLowerCase().includes('cancel')
-      ) {
-        return;
-      }
-
-      Alert.alert(
-        'PDF Error',
-        'Unable to open PDF picker. Please try again.',
-      );
-    }
-  };
-
   const pickFromCamera = async () => {
     const ok = await requestCameraPermission();
     if (!ok) return;
@@ -408,27 +367,38 @@ export default function UploadCertificateScreen({navigation}: any) {
     validateAndSet(result.assets[0]);
   };
 
+  const pickPdf = async () => {
+    try {
+      const results = await pick({
+        type: [types.pdf],
+        allowMultiSelection: false,
+      });
+      if (!results || results.length === 0) return;
+      const file = results[0];
+      validateAndSet({
+        uri: file.uri,
+        type: file.type || 'application/pdf',
+        fileName: file.name || 'document.pdf',
+        fileSize: file.size || 0,
+      });
+    } catch (err: any) {
+      if (
+        err?.code === 'DOCUMENT_PICKER_CANCELED' ||
+        err?.message?.toLowerCase().includes('cancel')
+      ) return;
+      Alert.alert('PDF Error', 'Unable to open PDF picker. Please try again.');
+    }
+  };
+
   const handlePickFile = () => {
     Alert.alert(
       'Attach Certificate',
       'Choose how to attach your certificate.',
       [
-        {
-          text: '📷  Take Photo',
-          onPress: pickFromCamera,
-        },
-        {
-          text: '🖼️  Choose Image',
-          onPress: pickFromGallery,
-        },
-        {
-          text: '📄  Choose PDF',
-          onPress: pickPdf,
-        },
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
+        {text: '📷  Take Photo',        onPress: pickFromCamera},
+        {text: '🖼️  Choose Image',      onPress: pickFromGallery},
+        {text: '📄  Choose PDF',        onPress: pickPdf},
+        {text: 'Cancel', style: 'cancel'},
       ],
       {cancelable: true},
     );

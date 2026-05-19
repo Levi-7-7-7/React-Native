@@ -10,7 +10,7 @@
     <style name="SplashTheme" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">#FFFFFF</item>
         <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
-        <item name="windowSplashScreenAnimationDuration">800</item>
+        <!-- <item name="windowSplashScreenAnimationDuration">800</item> -->
         <item name="postSplashScreenTheme">@style/AppTheme</item>
     </style>
 

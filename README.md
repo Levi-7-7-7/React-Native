@@ -1,169 +1,197 @@
-# APMS Mobile — Activity Points Management System
+# ActivityPoints Native
 
-The official Android companion app for APMS, built with React Native. Students can log in, track their activity points, upload certificates, and view approvals — all from their phone.
+A React Native mobile application for **SBTE Kerala** students to track, upload, and manage their mandatory activity points — fully aligned with the official SBTE Kerala activity points scheme.
+
+> Students upload certificates, tutors review them, and the app automatically calculates capped points per category against the required threshold to determine eligibility.
 
 ---
 
-## 📱 App Info
+## Features
 
-| Field | Value |
+- **Secure Authentication** — JWT-based login with OTP verification, forgot password, and reset password flows
+- **Activity Points Dashboard** — Real-time points tally with a visual progress bar, calculated against the SBTE Kerala pass threshold (60 pts regular / 40 pts lateral entry)
+- **Category-Capped Scoring** — Points engine mirrors the official SBTE rules: per-category caps, arts/sports/games max-of-best logic, and lateral entry adjustments
+- **Certificate Management** — Upload, browse, and view certificates with approval status (Approved / Pending / Rejected)
+- **In-App Certificate Viewer** — View PDFs and images in a full-screen WebView without leaving the app
+- **Push Notifications** — Firebase Cloud Messaging (FCM) notifies students instantly when a tutor approves or rejects a certificate
+- **Dark Mode** — Full theme support via a centralized theme context
+- **Offline-Resilient Auth** — Session is preserved on network errors; only a 401 forces a logout
+
+---
+
+## Tech Stack
+
+| Layer | Library / Version |
 |---|---|
-| App Name | APMS |
-| Package | `com.activitypointsnative` |
-| Version | 1.0 (build 1) |
-| Platform | Android (iOS scaffold included) |
-| Min SDK | API 24 (Android 7.0) |
-| Target SDK | API 36 (Android 16) |
-| React Native | 0.85.3 |
+| Framework | React Native 0.85.3 |
+| Language | TypeScript 5.8 |
+| Navigation | React Navigation 7 (Native Stack + Bottom Tabs) |
+| HTTP Client | Axios 1.16 |
+| Auth Storage | AsyncStorage |
+| Push Notifications | Firebase Messaging 24 + Notifee 9 |
+| Document Picker | `@react-native-documents/picker` |
+| Image Picker | `react-native-image-picker` |
+| Icons | `react-native-vector-icons` (MaterialCommunityIcons) |
+| WebView | `react-native-webview` |
+| Runtime | Node ≥ 22.11 |
 
 ---
 
-## ✨ Features
-
-- **OTP Login** — Email-based login with OTP verification
-- **Forgot Password** — Reset password via email OTP
-- **Dashboard** — Live activity points summary per category
-- **Upload Certificate** — Pick images from camera or gallery and submit with category, date, and description
-- **Certificates** — View all submitted certificates with approval status
-- **Animated Splash Screen** — Custom icon scale + fade exit animation (Android 12+)
-- **Persistent Auth** — JWT stored in AsyncStorage; session restores on relaunch
-- **Auto Logout** — Clears session automatically on 401 responses
-
----
-
-## 🛠️ Tech Stack
-
-| Package | Version | Purpose |
-|---|---|---|
-| React Native | 0.85.3 | Core framework |
-| React | 19.2.3 | UI rendering |
-| TypeScript | ^5.8.3 | Type safety |
-| React Navigation | ^7.x | Stack + bottom tab navigation |
-| Axios | ^1.16.0 | API calls with interceptors |
-| AsyncStorage | ^1.23.1 | Token & session persistence |
-| react-native-image-picker | ^8.2.1 | Camera & gallery access |
-| react-native-blob-util | ^0.19.11 | File download & handling |
-| react-native-vector-icons | ^10.3.0 | MaterialCommunityIcons tab bar |
-| react-native-safe-area-context | ^5.7.0 | Notch / gesture bar handling |
-| react-native-screens | ^4.24.0 | Native navigation optimization |
-| datetimepicker | ^8.3.0 | Date selection on uploads |
-| androidx.core:core-splashscreen | 1.0.1 | Native Android splash screen |
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-- Node.js >= 22.11.0
-- JDK 17+
-- Android Studio with Android SDK (API 36)
-- A physical Android device or emulator (API 24+)
-
-### Install dependencies
-
-```bash
-npm install
-```
-
-### Configure the API URL
-
-Open `src/api/axiosInstance.ts` and update `BASE_URL` to point to your backend:
-
-```ts
-export const BASE_URL = 'https://your-backend-url.com/api';
-```
-
-### Run in development
-
-```bash
-# Start Metro bundler
-npm start
-
-# In a separate terminal, run on Android
-npm run android
-```
-
----
-
-## 📦 Build Release APK
-
-```bash
-cd android
-gradlew assembleRelease
-```
-
-Output: `android/app/build/outputs/apk/release/app-release.apk`
-
-### Common build issues (Windows)
-
-If you hit a `classes.dex` file lock error:
-
-```bash
-gradlew --stop
-rd /s /q app\build
-gradlew assembleRelease
-```
-
-Also make sure Android Studio is closed and antivirus real-time scanning is paused during the build.
-
----
-
-## 📁 Project Structure
+## Project Structure
 
 ```
 src/
 ├── api/
-│   └── axiosInstance.ts        # Axios client with auth interceptors
+│   └── axiosInstance.ts        # Axios base config with auth token injection
 ├── context/
-│   └── AuthContext.tsx         # Global auth state, login/logout
+│   └── AuthContext.tsx         # Global auth state (user, role, logout)
 ├── navigation/
-│   ├── RootNavigator.tsx       # Auth-aware root stack
-│   └── StudentTabNavigator.tsx # Bottom tab bar (Dashboard / Upload / Certificates)
+│   ├── RootNavigator.tsx       # Auth gate — routes to Login or StudentApp
+│   └── StudentTabNavigator.tsx # Bottom tabs: Dashboard / Certificates / Upload
 ├── screens/
 │   ├── LoginScreen.tsx
 │   ├── VerifyOtpScreen.tsx
 │   ├── ForgotPasswordScreen.tsx
-│   ├── DashboardScreen.tsx
+│   ├── ResetPasswordScreen.tsx
+│   ├── DashboardScreen.tsx     # Points summary, progress bar, recent activity
+│   ├── CertificatesScreen.tsx  # Full certificate list with filters
 │   ├── UploadCertificateScreen.tsx
-│   └── CertificatesScreen.tsx
+│   └── CertificateViewerScreen.tsx
 ├── theme/
-│   └── index.ts                # Colors, typography, shared tokens
+│   └── index.ts                # Light / dark colour tokens
 └── utils/
-    └── calcPoints.ts           # SBTE Kerala points calculation (client-side)
+    ├── calcPoints.ts           # SBTE Kerala points calculation engine
+    ├── notificationService.ts  # Notifee local notification display
+    └── useFcmToken.ts          # FCM token registration hook
 ```
 
 ---
 
-## 🔐 Auth Flow
+## Getting Started
 
-```
-App launch
-  └─ AsyncStorage has token + role=student?
-       ├─ Yes → verify via GET /students/me → go to StudentTabNavigator
-       └─ No  → go to Login → VerifyOtp → StudentTabNavigator
+### Prerequisites
+
+- **Node** ≥ 22.11.0
+- **React Native CLI** environment set up ([official guide](https://reactnative.dev/docs/set-up-your-environment))
+- For Android: Android Studio with an emulator or physical device
+- For iOS: Xcode 15+ (macOS only)
+
+### Installation
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/Levi-7-7-7/Native.git
+cd ActivityPointsNative
+
+# 2. Install dependencies
+npm install
+
+# 3. iOS only — install CocoaPods
+cd ios && pod install && cd ..
 ```
 
-On 401 response, the Axios interceptor automatically clears all stored tokens and the user is returned to the login screen.
+### Firebase Setup
+
+This app uses Firebase for push notifications. Before running:
+
+1. Create a project in the [Firebase Console](https://console.firebase.google.com/)
+2. Add an Android app and download `google-services.json` → place it at `android/app/google-services.json`
+3. Add an iOS app and download `GoogleService-Info.plist` → place it inside `ios/ActivityPointsNative/`
+4. Enable **Cloud Messaging** in your Firebase project
+
+### Environment / API
+
+Update the base URL in `src/api/axiosInstance.ts` to point to your backend:
+
+```ts
+// src/api/axiosInstance.ts
+const axiosInstance = axios.create({
+  baseURL: 'https://your-api-domain.com/api',
+});
+```
+
+### Running the App
+
+```bash
+# Start the Metro bundler
+npm start
+
+# Android
+npm run android
+
+# iOS
+npm run ios
+```
 
 ---
 
-## 🔑 Permissions
+## Points Calculation
 
-| Permission | Reason |
+The scoring engine (`src/utils/calcPoints.ts`) implements the official **SBTE Kerala Activity Points** rules:
+
+| Student Type | Pass Threshold | Per-Category Cap |
+|---|---|---|
+| Regular | 60 points | 40 points |
+| Lateral Entry | 40 points | 30 points |
+
+**Special rule:** For Arts, Sports, and Games categories, only the **highest single certificate** counts (not the sum). All other categories sum approved certificate points up to the per-category cap.
+
+---
+
+## Notification Flow
+
+```
+Backend approves/rejects certificate
+        │
+        ▼
+Firebase sends FCM push to student device
+        │
+   ┌────┴────┐
+   │         │
+App open   App in background/killed
+   │         │
+Notifee    FCM system notification
+foreground  (tap → opens app & navigates to Dashboard)
+```
+
+---
+
+## Scripts
+
+| Command | Description |
 |---|---|
-| `INTERNET` | API communication |
-| Camera | Certificate photo capture |
-| Read Storage | Certificate image selection from gallery |
+| `npm start` | Start Metro bundler |
+| `npm run android` | Run on Android |
+| `npm run ios` | Run on iOS |
+| `npm run lint` | Run ESLint |
+| `npm test` | Run Jest tests |
 
 ---
 
-## 🔗 Related
+## Testing
 
-This app connects to the **APMS Backend** — see [`APMSV1-main`](../APMSV1-main) for backend setup instructions and API documentation.
+```bash
+npm test
+```
+
+Tests live in `__tests__/`. The project uses `@react-native/jest-preset`.
 
 ---
 
-## 📄 License
+## Contributing
 
-Internal use only.
+Feel free to fork the project and submit pull requests.
+Please follow the existing ESLint and Prettier configuration.
+
+---
+
+## License
+
+This project is private. All rights reserved.
+
+---
+
+## Related
+
+- [SBTE Kerala](https://www.sbte.kerala.gov.in/) — State Board of Technical Education, Kerala
+- [ActivityPoints Web Frontend](https://github.com/your-org/activity-points-frontend) — Companion web app for tutors and admins

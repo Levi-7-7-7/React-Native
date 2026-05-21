@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useRef} from 'react';
+import React, {useState, useEffect, useRef, useCallback} from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, ActivityIndicator, Alert, Platform, Modal,
@@ -11,8 +11,11 @@ import DateTimePicker, {
 import {launchImageLibrary, launchCamera} from 'react-native-image-picker';
 import {pick, types} from '@react-native-documents/picker';
 import ImageResizer from 'react-native-image-resizer';
+import RNFS from 'react-native-fs'; // ✅ FIX #2: import RNFS for temp file cleanup
 import axiosInstance from '../api/axiosInstance';
 import {useTheme, Colors} from '../theme';
+
+import {useFocusEffect} from '@react-navigation/native';
 
 const MAX_FILE_SIZE_MB = 5;
 
@@ -21,6 +24,41 @@ const MAX_FILE_SIZE_MB = 5;
 const RESIZE_WIDTH  = 1200;
 const RESIZE_HEIGHT = 1600;
 const RESIZE_QUALITY = 80; // 0–100
+
+const clearTempCache = async () => {
+  try {
+    const tempDirs = [
+      RNFS.CachesDirectoryPath,
+      RNFS.TemporaryDirectoryPath,
+    ];
+
+    for (const dir of tempDirs) {
+      const exists = await RNFS.exists(dir);
+
+      if (!exists) continue;
+
+      const files = await RNFS.readDir(dir);
+
+      for (const file of files) {
+        try {
+          // only delete image/pdf temp files
+          if (
+            file.name.endsWith('.jpg') ||
+            file.name.endsWith('.jpeg') ||
+            file.name.endsWith('.png') ||
+            file.name.endsWith('.pdf')
+          ) {
+            await RNFS.unlink(file.path);
+          }
+        } catch {}
+      }
+    }
+
+    console.log('✅ Temp cache cleaned');
+  } catch (err) {
+    console.log('Cache cleanup error:', err);
+  }
+};
 
 function buildSearchIndex(categories: any[]) {
   const items: any[] = [];
@@ -222,6 +260,26 @@ export default function UploadCertificateScreen({navigation}: any) {
     setShowDropdown(true);
   }, [searchQuery, categories]);
 
+  useEffect(() => {
+    return () => {
+      if (uploadedFile?._isTemp && uploadedFile?.uri) {
+        RNFS.exists(uploadedFile.uri)
+          .then(exists => {
+            if (exists) {
+              RNFS.unlink(uploadedFile.uri).catch(() => {});
+            }
+          });
+      }
+    };
+  }, []);
+
+
+useFocusEffect(
+  useCallback(() => {
+    clearTempCache();
+  }, []),
+);
+
   const selectSearchResult = (item: any) => {
     const cat = categories.find(c => c._id === item.categoryId);
     skipSubcategoryReset.current = true;
@@ -307,64 +365,114 @@ export default function UploadCertificateScreen({navigation}: any) {
    * Resizes an image asset to RESIZE_WIDTH x RESIZE_HEIGHT at RESIZE_QUALITY.
    * onlyScaleDown ensures small images are never upscaled.
    * Falls back to the original asset if ImageResizer throws.
+   *
+   * ✅ FIX #2: tracks whether the returned URI is a resized temp file
+   * so handleSubmit can unlink it after upload.
    */
-  const resizeImage = async (asset: any): Promise<any> => {
-    try {
-      const resized = await ImageResizer.createResizedImage(
-        asset.uri,
-        RESIZE_WIDTH,
-        RESIZE_HEIGHT,
-        'JPEG',
-        RESIZE_QUALITY,
-        0,           // rotation
-        undefined,   // output path — use temp dir
-        false,
-        {mode: 'contain', onlyScaleDown: true},
-      );
-      return {
-        uri: resized.uri,
-        type: 'image/jpeg',
-        fileName: resized.name,
-        fileSize: resized.size,
-      };
-    } catch {
-      // Resize failed — fall back to original so the upload still works
-      return asset;
-    }
-  };
+  const resizeImageIfNeeded = async (
+        asset: any,
+      ): Promise<{file: any; isTemp: boolean}> => {
+        const sizeInMB = (asset.fileSize || 0) / 1024 / 1024;
 
+        // ✅ Small images → keep original
+        if (sizeInMB <= MAX_FILE_SIZE_MB) {
+          return {
+            file: asset,
+            isTemp: false,
+          };
+        }
+
+        // ✅ Large images → compress
+        Alert.alert(
+          'Optimizing Image',
+          'Large image detected. Compressing for faster upload...',
+        );
+
+        try {
+          const resized = await ImageResizer.createResizedImage(
+            asset.uri,
+            900,
+            1200,
+            'JPEG',
+            60,
+            0,
+            undefined,
+            false,
+            {mode: 'contain', onlyScaleDown: true},
+          );
+
+          return {
+            file: {
+              uri: resized.uri,
+              type: 'image/jpeg',
+              fileName: resized.name,
+              fileSize: resized.size,
+            },
+            isTemp: true,
+          };
+        } catch {
+          return {
+            file: asset,
+            isTemp: false,
+          };
+        }
+      };
   // ── Validates that the picked asset is an image or PDF, then stores it ──
-  const validateAndSet = (asset: any) => {
+  const validateAndSet = (asset: any, isTemp = false) => {
     if ((asset.fileSize || 0) > MAX_FILE_SIZE_MB * 1024 * 1024) {
       Alert.alert('File too large', `File must be under ${MAX_FILE_SIZE_MB} MB.`);
+
+      if (isTemp && asset.uri) {
+        RNFS.unlink(asset.uri).catch(() => {});
+      }
+
       return;
     }
+
     const mime: string = (asset.type || '').toLowerCase();
     const name: string = (asset.fileName || '').toLowerCase();
+
     const isImage = mime.startsWith('image/');
     const isPdf = mime === 'application/pdf' || name.endsWith('.pdf');
+
     if (!isImage && !isPdf) {
       Alert.alert(
         'Unsupported file type',
         'Only images (JPG, PNG, etc.) and PDF files are accepted as certificates.',
       );
+
+      if (isTemp && asset.uri) {
+        RNFS.unlink(asset.uri).catch(() => {});
+      }
+
       return;
     }
-    setUploadedFile(asset);
-  };
+
+  // ✅ CLEAN OLD TEMP FILE BEFORE REPLACING
+  setUploadedFile((prev: any) => {
+    if (prev?._isTemp && prev?.uri) {
+      RNFS.unlink(prev.uri).catch(() => {});
+    }
+
+    return {
+      ...asset,
+      _isTemp: isTemp,
+    };
+  });
+};
 
   const pickFromGallery = async () => {
     const ok = await requestMediaPermission();
     if (!ok) return;
     const result = await launchImageLibrary({
       mediaType: 'photo',
-      quality: 1,          // pick full quality — resizer handles compression
+      quality: 0.7,          // pick full quality — resizer handles compression
       selectionLimit: 1,
       presentationStyle: 'pageSheet',
     });
     if (result.didCancel || !result.assets?.length) return;
-    const resized = await resizeImage(result.assets[0]);
-    validateAndSet(resized);
+    const {file: resized, isTemp} = await resizeImageIfNeeded(result.assets[0]);
+    validateAndSet(resized, isTemp);
   };
 
   const pickFromCamera = async () => {
@@ -372,12 +480,14 @@ export default function UploadCertificateScreen({navigation}: any) {
     if (!ok) return;
     const result = await launchCamera({
       mediaType: 'photo',
-      quality: 1,          // pick full quality — resizer handles compression
+      quality: 0.7,
       saveToPhotos: false,
+      includeBase64: false,
+      cameraType: 'back',
     });
     if (result.didCancel || !result.assets?.length) return;
-    const resized = await resizeImage(result.assets[0]);
-    validateAndSet(resized);
+    const {file: resized, isTemp} = await resizeImageIfNeeded(result.assets[0]);
+    validateAndSet(resized, isTemp);
   };
 
   const pickPdf = async () => {
@@ -429,9 +539,14 @@ export default function UploadCertificateScreen({navigation}: any) {
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
+
     setUploading(true);
+
+    const file = uploadedFile;
+
     try {
       const formData = new FormData();
+
       if (isOthers) {
         formData.append('categoryId', 'others');
         formData.append('subcategoryName', othersDescription.trim());
@@ -443,13 +558,30 @@ export default function UploadCertificateScreen({navigation}: any) {
         formData.append('level', levelSelected || '');
         formData.append('prizeType', prizeType || '');
       }
-      if (dateFrom) formData.append('dateFrom', dateFrom.toISOString().split('T')[0]);
-      if (dateTo) formData.append('dateTo', dateTo.toISOString().split('T')[0]);
-      if (eventName.trim()) formData.append('eventName', eventName.trim());
 
-      const file = uploadedFile;
+      if (dateFrom) {
+        formData.append(
+          'dateFrom',
+          dateFrom.toISOString().split('T')[0],
+        );
+      }
+
+      if (dateTo) {
+        formData.append(
+          'dateTo',
+          dateTo.toISOString().split('T')[0],
+        );
+      }
+
+      if (eventName.trim()) {
+        formData.append('eventName', eventName.trim());
+      }
+
       formData.append('file', {
-        uri: Platform.OS === 'android' ? file.uri : file.uri.replace('file://', ''),
+        uri:
+          Platform.OS === 'android'
+            ? file.uri
+            : file.uri.replace('file://', ''),
         type: file.type || 'image/jpeg',
         name: file.fileName || 'certificate.jpg',
       } as any);
@@ -457,10 +589,23 @@ export default function UploadCertificateScreen({navigation}: any) {
       await axiosInstance.post('/certificates/upload', formData, {
         headers: {'Content-Type': 'multipart/form-data'},
       });
+
+      await clearTempCache();
+
       setSubmitted(true);
+
     } catch (err) {
-      Alert.alert('Upload Failed', 'Please check your connection and try again.');
+      Alert.alert(
+        'Upload Failed',
+        'Please check your connection and try again.',
+      );
+
     } finally {
+      // ✅ ALWAYS CLEAN TEMP FILES
+      if (file?._isTemp && file?.uri) {
+        RNFS.unlink(file.uri).catch(() => {});
+      }
+      setUploadedFile(null);
       setUploading(false);
     }
   };
@@ -772,7 +917,12 @@ export default function UploadCertificateScreen({navigation}: any) {
           onPress={handleSubmit}
           disabled={!canSubmit}>
           {uploading ? (
-            <ActivityIndicator color="#fff" />
+            <View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}>
+              <ActivityIndicator color="#fff" />
+              <Text style={{color: '#fff', fontWeight: '600'}}>
+                Uploading...
+              </Text>
+            </View>
           ) : (
             <Text style={styles.submitText}>Submit Certificate</Text>
           )}

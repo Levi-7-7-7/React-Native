@@ -1,7 +1,7 @@
 import React, {useState, useEffect, useRef, useCallback} from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, ActivityIndicator, Alert, Platform, Modal,
+  ActivityIndicator, Alert, Platform, Modal,
   FlatList, StatusBar, PermissionsAndroid,
   Animated,
 } from 'react-native';
@@ -20,6 +20,8 @@ import {useFocusEffect} from '@react-navigation/native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 import LottieView from 'lottie-react-native';
+// In DashboardScreen, CertificatesScreen, UploadCertificateScreen
+import { ScrollView } from 'react-native-gesture-handler'; // ← use this, not react-native!
 
 const MAX_FILE_SIZE_MB = 5;
 

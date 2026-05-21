@@ -1,6 +1,6 @@
 import React, {useState, useEffect, useMemo} from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  View, Text, StyleSheet, TouchableOpacity,
   RefreshControl, Alert, ActivityIndicator, StatusBar, Linking,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
@@ -9,6 +9,8 @@ import {useAuth} from '../context/AuthContext';
 import {calcCappedPoints, passThreshold} from '../utils/calcPoints';
 import {useTheme} from '../theme';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+// In DashboardScreen, CertificatesScreen, UploadCertificateScreen
+import { ScrollView } from 'react-native-gesture-handler'; // ← use this, not react-native!
 
 const FILTERS = ['all', 'approved', 'pending', 'rejected'];
 

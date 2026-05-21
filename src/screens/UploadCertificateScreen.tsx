@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from 'react';
+import React, {useState, useEffect, useRef} from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, ActivityIndicator, Alert, Platform, Modal,
@@ -149,6 +149,11 @@ export default function UploadCertificateScreen({navigation}: any) {
   const [isOthers, setIsOthers] = useState(false);
   const [othersDescription, setOthersDescription] = useState('');
 
+  // When a search result is selected, setCategoryId fires a useEffect that
+  // would normally wipe subcategoryName. This flag tells that effect to skip
+  // the reset exactly once (the search-selection case).
+  const skipSubcategoryReset = useRef(false);
+
   const [catModalOpen, setCatModalOpen] = useState(false);
   const [subModalOpen, setSubModalOpen] = useState(false);
   const [levelModalOpen, setLevelModalOpen] = useState(false);
@@ -172,10 +177,16 @@ export default function UploadCertificateScreen({navigation}: any) {
     }
     const cat = categories.find(c => c._id === categoryId);
     setSubcategories(cat?.subcategories || []);
-    setSubcategoryName('');
-    setLevelSelected('');
-    setPrizeType('');
-    setEligiblePoints(null);
+    // If a search result just set both categoryId AND subcategoryName together,
+    // skip resetting subcategoryName this one time.
+    if (skipSubcategoryReset.current) {
+      skipSubcategoryReset.current = false;
+    } else {
+      setSubcategoryName('');
+      setLevelSelected('');
+      setPrizeType('');
+      setEligiblePoints(null);
+    }
   }, [categoryId, categories]);
 
   useEffect(() => {
@@ -212,6 +223,8 @@ export default function UploadCertificateScreen({navigation}: any) {
 
   const selectSearchResult = (item: any) => {
     const cat = categories.find(c => c._id === item.categoryId);
+    // Set the flag BEFORE setCategoryId so the useEffect skips its reset
+    skipSubcategoryReset.current = true;
     setCategoryId(item.categoryId);
     setSubcategories(cat?.subcategories || []);
     setSubcategoryName(item.subcategoryName);
@@ -474,14 +487,18 @@ export default function UploadCertificateScreen({navigation}: any) {
   }
 
   const selectedCat = categories.find(c => c._id === categoryId);
-  const prizeLevels = ['Participation', 'First', 'Second', 'Third'];
   const catItems = [
     ...categories.map(c => ({label: c.name, value: c._id})),
     {label: 'Others', value: '__others__'},
   ];
-  const subItems = subcategories.map((s: any) => ({label: s.name, value: s.name}));
+  const subItems = subcategories.map((s: any) => ({label: s.name, value: s.name}));  
   const levelItems = currentSub?.levels?.map((l: any) => ({label: l.name, value: l.name})) || [];
-  const prizeItems = prizeLevels.map(p => ({label: p, value: p}));
+  // Build prize options from the ACTUAL prizes on the selected level (not a hardcoded list).
+  // e.g. "Professional Body Competitions" only has Participation — no First/Second/Third.
+  const selectedLevelObj = currentSub?.levels?.find((l: any) => l.name === levelSelected);
+  const prizeItems = selectedLevelObj
+    ? selectedLevelObj.prizes.map((p: any) => ({label: p.type, value: p.type}))
+    : [];
 
   return (
     <SafeAreaView style={[styles.safeArea, {backgroundColor: colors.bg}]}>
@@ -503,7 +520,14 @@ export default function UploadCertificateScreen({navigation}: any) {
       />
       <DropdownModal visible={levelModalOpen} title="Select Level" items={levelItems}
         selectedValue={levelSelected} colors={colors}
-        onSelect={v => setLevelSelected(v)}
+        onSelect={v => {
+          setLevelSelected(v);
+          setPrizeType('');
+          // Auto-select prize type when the level only has one option
+          // (e.g. "Professional Body Competitions" only offers Participation)
+          const lvl = currentSub?.levels?.find((l: any) => l.name === v);
+          if (lvl?.prizes?.length === 1) { setPrizeType(lvl.prizes[0].type); }
+        }}
         onClose={() => setLevelModalOpen(false)}
       />
       <DropdownModal visible={prizeModalOpen} title="Select Prize Type" items={prizeItems}

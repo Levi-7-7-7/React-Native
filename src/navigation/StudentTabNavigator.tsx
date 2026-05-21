@@ -1,67 +1,112 @@
-/**
- * StudentTabNavigator.tsx  (final version)
- *
- * Uses FCM (real push) instead of polling.
- * useFcmToken()  — registers the device token with the backend on login.
- * Firebase handles background delivery automatically once the token is saved.
- */
 import React from 'react';
-import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
+import {Platform} from 'react-native';
+import {createMaterialTopTabNavigator} from '@react-navigation/material-top-tabs';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
+
 import {useTheme} from '../theme';
+
 import DashboardScreen from '../screens/DashboardScreen';
 import CertificatesScreen from '../screens/CertificatesScreen';
 import UploadCertificateScreen from '../screens/UploadCertificateScreen';
+
 import {useFcmToken} from '../utils/useFcmToken';
 
-const Tab = createBottomTabNavigator();
-type TabBarIconProps = {color: string; size: number};
+const Tab = createMaterialTopTabNavigator();
 
 export default function StudentTabNavigator() {
   const {colors} = useTheme();
+  const insets = useSafeAreaInsets();
 
-  // Register this device's FCM token with the backend.
-  // From this point on, the backend sends push notifications directly
-  // via Firebase when a tutor approves or rejects a certificate —
-  // no polling needed.
   useFcmToken();
 
   return (
     <Tab.Navigator
+      tabBarPosition="bottom"
       screenOptions={{
-        headerShown: false,
+        swipeEnabled: true,
+        animationEnabled: true,
+        lazy: true,
+
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
+
+        tabBarShowIcon: true,
+
+        tabBarIndicatorStyle: {
+          backgroundColor: colors.primary,
+          height: 3,
+          borderRadius: 10,
+        },
+
         tabBarStyle: {
           backgroundColor: colors.card,
           borderTopColor: colors.border,
+          borderTopWidth: 1,
+
+          elevation: 8,
+
+          height: Platform.OS === 'android'
+            ? 65 + insets.bottom
+            : 80,
+
+          paddingBottom: insets.bottom,
         },
+
+        tabBarItemStyle: {
+          paddingVertical: 4,
+        },
+
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '600',
+          textTransform: 'none',
+        },
+
+        tabBarPressColor: 'transparent',
       }}>
+
       <Tab.Screen
         name="Dashboard"
         component={DashboardScreen}
         options={{
-          tabBarIcon: ({color, size}: TabBarIconProps) => (
-            <MaterialCommunityIcons name="view-dashboard-outline" color={color} size={size} />
+          tabBarLabel: 'Dashboard',
+          tabBarIcon: ({color}) => (
+            <MaterialCommunityIcons
+              name="view-dashboard-outline"
+              color={color}
+              size={24}
+            />
           ),
         }}
       />
+
       <Tab.Screen
         name="Certificates"
         component={CertificatesScreen}
         options={{
-          tabBarIcon: ({color, size}: TabBarIconProps) => (
-            <MaterialCommunityIcons name="certificate-outline" color={color} size={size} />
+          tabBarLabel: 'Certificates',
+          tabBarIcon: ({color}) => (
+            <MaterialCommunityIcons
+              name="certificate-outline"
+              color={color}
+              size={24}
+            />
           ),
         }}
       />
+
       <Tab.Screen
         name="Upload"
         component={UploadCertificateScreen}
         options={{
           tabBarLabel: 'Upload',
-          tabBarIcon: ({color, size}: TabBarIconProps) => (
-            <MaterialCommunityIcons name="upload-outline" color={color} size={size} />
+          tabBarIcon: ({color}) => (
+            <MaterialCommunityIcons
+              name="upload-outline"
+              color={color}
+              size={24}
+            />
           ),
         }}
       />

@@ -6,6 +6,7 @@ import notifee, {EventType} from '@notifee/react-native';
 import messaging from '@react-native-firebase/messaging';
 import {AuthProvider, useAuth} from './src/context/AuthContext';
 import RootNavigator from './src/navigation/RootNavigator';
+import {GestureHandlerRootView} from 'react-native-gesture-handler';
 
 // Inner component so it can access useAuth()
 function AppInner({navigationRef}: {navigationRef: React.RefObject<NavigationContainerRef<any> | null>}) {
@@ -29,7 +30,7 @@ function AppInner({navigationRef}: {navigationRef: React.RefObject<NavigationCon
       return;
     }
     try {
-      navigationRef.current?.navigate('StudentApp', {screen: 'Dashboard'});
+      navigationRef.current?.navigate('StudentApp', {screen: 'Certificates'});
     } catch (e) {
       console.warn('[Nav] Navigate failed:', e);
     }
@@ -39,7 +40,7 @@ function AppInner({navigationRef}: {navigationRef: React.RefObject<NavigationCon
   // Re-attempt when auth resolves
   useEffect(() => {
     if (!loading && notificationPending.current) {
-      setTimeout(() => goToCertificates(), 20000);
+      setTimeout(() => goToCertificates(), 500);
     }
   }, [loading, role]);
 
@@ -83,11 +84,17 @@ export default function App() {
   const navigationRef = useRef<NavigationContainerRef<any>>(null);
 
   return (
-    <SafeAreaProvider>
-      <StatusBar barStyle="dark-content" backgroundColor="#f0f4ff" />
-      <AuthProvider>
-        <AppInner navigationRef={navigationRef} />
-      </AuthProvider>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{flex: 1}}>
+      <SafeAreaProvider>
+        <StatusBar
+          barStyle="dark-content"
+          backgroundColor="#f0f4ff"
+        />
+
+        <AuthProvider>
+          <AppInner navigationRef={navigationRef} />
+        </AuthProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }

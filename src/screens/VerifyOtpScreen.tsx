@@ -115,7 +115,7 @@ export default function VerifyOtpScreen({route}: any) {
           <View style={styles.inputRow}>
             <TextInput
               style={styles.inputFlex}
-              placeholder="Set a password for future logins"
+              placeholder="Enter the password"
               placeholderTextColor="#9ca3af"
               value={password}
               onChangeText={setPassword}

@@ -8,6 +8,7 @@ import axiosInstance from '../api/axiosInstance';
 import {useAuth} from '../context/AuthContext';
 import {calcCappedPoints, passThreshold} from '../utils/calcPoints';
 import {useTheme} from '../theme';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 export default function DashboardScreen({navigation}: any) {
   const {user, setUser, logout} = useAuth();
@@ -119,7 +120,11 @@ export default function DashboardScreen({navigation}: any) {
               of {PASS_POINTS} required
             </Text>
           </View>
-          <Text style={styles.trophyEmoji}>🏆</Text>
+          <MaterialCommunityIcons
+            name="trophy-outline"
+            size={48}
+            color={colors.primary}
+          />
         </View>
 
         {/* Progress bar */}
@@ -138,7 +143,11 @@ export default function DashboardScreen({navigation}: any) {
         {/* Pass Banner */}
         {hasPassed && (
           <View style={[styles.passBanner, {backgroundColor: colors.cardSuccess}]}>
-            <Text style={styles.passBannerEmoji}>🎉</Text>
+            <MaterialCommunityIcons
+              name="check-decagram"
+              size={42}
+              color={colors.success || '#22c55e'}
+            />
             <View style={styles.passBannerText}>
               <Text style={[styles.passBannerTitle, {color: colors.badgeApprovedText}]}>
                 Activity Points Completed!
@@ -184,11 +193,19 @@ export default function DashboardScreen({navigation}: any) {
                       numberOfLines={1}>
                       {cert.subcategory || cert.eventName || 'Certificate'}
                     </Text>
-                    <Text style={[styles.activityDate, {color: colors.textMuted}]}>
-                      {cert.createdAt
-                        ? new Date(cert.createdAt).toLocaleDateString()
-                        : '—'}
-                    </Text>
+                   <View style={styles.dateRow}>
+                      <MaterialCommunityIcons
+                        name="calendar-month-outline"
+                        size={14}
+                        color={colors.textMuted}
+                      />
+
+                      <Text style={[styles.activityDate, {color: colors.textMuted}]}>
+                        {cert.createdAt
+                          ? new Date(cert.createdAt).toLocaleDateString()
+                          : '—'}
+                      </Text>
+                    </View>
                   </View>
                 </View>
                 <Text style={[styles.activityStatus, getActivityStatusStyle(cert.status)]}>
@@ -241,14 +258,14 @@ const styles = StyleSheet.create({
   pointsLabel: {fontSize: 13, fontWeight: '500', marginBottom: 4},
   pointsValue: {fontSize: 52, fontWeight: '800', color: '#fff'},
   pointsOf: {fontSize: 13, marginTop: 2},
-  trophyEmoji: {fontSize: 52},
+  // trophyEmoji: {fontSize: 52},
   progressBg: {height: 6, borderRadius: 3, marginTop: 12, marginBottom: 14},
   progressFill: {height: 6, borderRadius: 3},
   passBanner: {
     borderRadius: 14, padding: 14, marginBottom: 20,
     flexDirection: 'row', alignItems: 'center', gap: 10,
   },
-  passBannerEmoji: {fontSize: 28},
+  // passBannerEmoji: {fontSize: 28},
   passBannerText: {flex: 1},
   passBannerTitle: {fontSize: 14, fontWeight: '800'},
   passBannerSub: {fontSize: 12, marginTop: 2},
@@ -273,9 +290,18 @@ const styles = StyleSheet.create({
   activityLeft: {flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1},
   activityDot: {width: 10, height: 10, borderRadius: 5},
   activityName: {fontSize: 14, fontWeight: '600'},
-  activityDate: {fontSize: 12, marginTop: 2},
+  activityDate: {
+  fontSize: 12,
+},
   activityStatus: {fontSize: 13, fontWeight: '700'},
   noData: {textAlign: 'center', padding: 20, fontSize: 14},
   viewAllBtn: {marginTop: 16, alignItems: 'center'},
   viewAllText: {fontWeight: '600', fontSize: 14},
+
+  dateRow: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  gap: 4,
+  marginTop: 2,
+},
 });

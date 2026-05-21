@@ -3,6 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, ActivityIndicator, Alert, Platform, Modal,
   FlatList, StatusBar, PermissionsAndroid,
+  Animated,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import DateTimePicker, {
@@ -16,6 +17,9 @@ import axiosInstance from '../api/axiosInstance';
 import {useTheme, Colors} from '../theme';
 
 import {useFocusEffect} from '@react-navigation/native';
+import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+
+import LottieView from 'lottie-react-native';
 
 const MAX_FILE_SIZE_MB = 5;
 
@@ -23,7 +27,9 @@ const MAX_FILE_SIZE_MB = 5;
 // small enough to stay well under 5 MB.
 const RESIZE_WIDTH  = 1200;
 const RESIZE_HEIGHT = 1600;
-const RESIZE_QUALITY = 80; // 0–100
+const RESIZE_QUALITY = 100; // 0–100
+
+
 
 const clearTempCache = async () => {
   try {
@@ -43,10 +49,12 @@ const clearTempCache = async () => {
         try {
           // only delete image/pdf temp files
           if (
-            file.name.endsWith('.jpg') ||
-            file.name.endsWith('.jpeg') ||
-            file.name.endsWith('.png') ||
-            file.name.endsWith('.pdf')
+              file.name.endsWith('.jpg') ||
+              file.name.endsWith('.jpeg') ||
+              file.name.endsWith('.png') ||
+              file.name.endsWith('.pdf') ||
+              file.name.endsWith('.webp') ||
+              file.name.endsWith('.heic')
           ) {
             await RNFS.unlink(file.path);
           }
@@ -147,23 +155,40 @@ function DatePickerField({
     : null;
   return (
     <TouchableOpacity
-      style={[
-        dpf.btn,
-        {
-          backgroundColor: colors.inputBg,
-          borderColor: value ? colors.primary : colors.border,
-        },
-      ]}
-      onPress={onPress}
-      activeOpacity={0.7}>
-      <Text style={[dpf.icon]}>📅</Text>
-      <Text style={[dpf.text, {color: formatted ? colors.text : colors.textMuted}]}>
-        {formatted || label}
-      </Text>
-      {value && (
-        <Text style={[dpf.chevron, {color: colors.primary}]}>✓</Text>
-      )}
-    </TouchableOpacity>
+  style={[
+    dpf.btn,
+    {
+      backgroundColor: colors.inputBg,
+      borderColor: value ? colors.primary : colors.border,
+    },
+  ]}
+  onPress={onPress}
+  activeOpacity={0.7}>
+
+  <MaterialCommunityIcons
+    name="calendar-month-outline"
+    size={20}
+    color={value ? colors.primary : colors.textMuted}
+    style={dpf.icon}
+  />
+
+  <Text
+    style={[
+      dpf.text,
+      {color: formatted ? colors.text : colors.textMuted},
+    ]}>
+    {formatted || label}
+  </Text>
+
+  {value && (
+    <MaterialCommunityIcons
+      name="check-circle"
+      size={18}
+      color={colors.primary}
+      style={dpf.chevron}
+    />
+  )}
+</TouchableOpacity>
   );
 }
 
@@ -183,6 +208,9 @@ export default function UploadCertificateScreen({navigation}: any) {
 
   const [dateFrom, setDateFrom] = useState<Date | null>(null);
   const [dateTo, setDateTo] = useState<Date | null>(null);
+
+  const [isDurationEvent, setIsDurationEvent] = useState(false);
+
   const [showFromPicker, setShowFromPicker] = useState(false);
   const [showToPicker, setShowToPicker] = useState(false);
 
@@ -199,6 +227,9 @@ export default function UploadCertificateScreen({navigation}: any) {
   const [subModalOpen, setSubModalOpen] = useState(false);
   const [levelModalOpen, setLevelModalOpen] = useState(false);
   const [prizeModalOpen, setPrizeModalOpen] = useState(false);
+
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
 
   useEffect(() => {
     axiosInstance
@@ -279,6 +310,34 @@ useFocusEffect(
     clearTempCache();
   }, []),
 );
+
+useEffect(() => {
+  if (submitted) {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 6,
+        tension: 80,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Auto redirect after animation
+    const timer = setTimeout(() => {
+      navigation.reset({
+        index: 0,
+        routes: [{name: 'Dashboard'}],
+      });
+    }, 2600);
+
+    return () => clearTimeout(timer);
+  }
+}, [submitted, fadeAnim, scaleAnim, navigation]);
 
   const selectSearchResult = (item: any) => {
     const cat = categories.find(c => c._id === item.categoryId);
@@ -534,10 +593,35 @@ useFocusEffect(
   const hasLevels = currentSub?.levels?.length > 0;
 
   const canSubmit = isOthers
-    ? othersDescription.trim() && uploadedFile && !uploading
-    : categoryId && subcategoryName && uploadedFile && !uploading;
+  ? othersDescription.trim() &&
+    uploadedFile &&
+    dateFrom &&
+    (!isDurationEvent || dateTo) &&
+    !uploading
+  : categoryId &&
+    subcategoryName &&
+    uploadedFile &&
+    dateFrom &&
+    (!isDurationEvent || dateTo) &&
+    !uploading;
+
 
   const handleSubmit = async () => {
+if (!dateFrom) {
+  Alert.alert(
+    'Certificate Date Required',
+    'Please select the certificate date.',
+  );
+  return;
+}
+
+if (isDurationEvent && !dateTo) {
+  Alert.alert(
+    'End Date Required',
+    'Please select the activity end date.',
+  );
+  return;
+}
     if (!canSubmit) return;
 
     setUploading(true);
@@ -613,20 +697,37 @@ useFocusEffect(
   if (submitted) {
     return (
       <SafeAreaView style={[styles.safeArea, {backgroundColor: colors.successBg}]}>
-        <View style={[styles.successContainer, {backgroundColor: colors.successBg}]}>
-          <Text style={styles.successEmoji}>✅</Text>
+        <Animated.View
+  style={[
+    styles.successContainer,
+    {
+      backgroundColor: colors.successBg,
+      opacity: fadeAnim,
+      transform: [{scale: scaleAnim}],
+    },
+  ]}>
+          <LottieView
+  source={require('../assets/animations/success.json')}
+  autoPlay
+  loop={false}
+  style={{
+    width: 220,
+    height: 220,
+    marginBottom: 10,
+  }}
+/>
           <Text style={[styles.successTitle, {color: colors.successTitle}]}>
             Certificate Submitted!
           </Text>
           <Text style={[styles.successSub, {color: colors.successSub}]}>
             Your certificate has been submitted and is pending approval by your tutor.
           </Text>
-          <TouchableOpacity
+          {/* <TouchableOpacity
             style={[styles.successBtn, {backgroundColor: colors.successBtn}]}
             onPress={() => { setSubmitted(false); navigation.navigate('Dashboard'); }}>
             <Text style={styles.successBtnText}>Back to Dashboard</Text>
-          </TouchableOpacity>
-        </View>
+          </TouchableOpacity> */}
+        </Animated.View>
       </SafeAreaView>
     );
   }
@@ -756,7 +857,16 @@ useFocusEffect(
         {isOthers ? (
           <View style={[styles.othersBox, {backgroundColor: colors.primaryMuted, borderColor: colors.primaryLight}]}>
             <View style={styles.othersHeader}>
-              <Text style={[styles.othersLabel, {color: colors.primary}]}>📎 Others</Text>
+              <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
+  <MaterialCommunityIcons
+    name="paperclip"
+    size={16}
+    color={colors.primary}
+  />
+  <Text style={[styles.othersLabel, {color: colors.primary}]}>
+    Others
+  </Text>
+</View>
               <TouchableOpacity onPress={() => { setIsOthers(false); setOthersDescription(''); }}>
                 <Text style={[styles.clearText, {color: colors.dangerText}]}>✕ Clear</Text>
               </TouchableOpacity>
@@ -845,9 +955,16 @@ useFocusEffect(
 
             {eligiblePoints !== null && (
               <View style={[styles.eligibleBox, {backgroundColor: colors.cardWarn, borderColor: colors.badgePendingText}]}>
-                <Text style={[styles.eligibleText, {color: colors.warnText}]}>
-                  🏅 Eligible Points: {eligiblePoints}
-                </Text>
+                <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
+  <MaterialCommunityIcons
+    name="trophy-award"
+    size={18}
+    color={colors.warnText}
+  />
+  <Text style={[styles.eligibleText, {color: colors.warnText}]}>
+    Eligible Points: {eligiblePoints}
+  </Text>
+</View>
                 <Text style={[styles.eligibleNote, {color: colors.warnNote}]}>
                   *Final points will be approved by tutor
                 </Text>
@@ -857,55 +974,157 @@ useFocusEffect(
         )}
 
         {/* Date / Duration */}
-        <Text style={[styles.label, {color: colors.textSub}]}>
-          📅 Certificate Date / Activity Duration
-        </Text>
-        <View style={styles.dateRow}>
-          <View style={styles.dateField}>
-            <Text style={[styles.dateLabel, {color: colors.textMuted}]}>From / Date</Text>
-            <DatePickerField
-              label="Select date"
-              value={dateFrom}
-              onPress={() => setShowFromPicker(true)}
-              colors={colors}
-            />
-          </View>
-          <View style={styles.dateField}>
-            <Text style={[styles.dateLabel, {color: colors.textMuted}]}>To (optional)</Text>
-            <DatePickerField
-              label="Select date"
-              value={dateTo}
-              onPress={() => setShowToPicker(true)}
-              colors={colors}
-            />
-          </View>
-        </View>
-        {(dateFrom || dateTo) && (
-          <TouchableOpacity
-            onPress={() => { setDateFrom(null); setDateTo(null); }}
-            style={styles.clearDates}>
-            <Text style={[styles.clearDatesText, {color: colors.textMuted}]}>
-              ✕ Clear dates
-            </Text>
-          </TouchableOpacity>
-        )}
+        {/* Date / Duration */}
 
+<View
+  style={{
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 14,
+    marginBottom: 6,
+  }}>
+  <MaterialCommunityIcons
+    name="calendar-range"
+    size={18}
+    color={colors.textSub}
+    style={{marginRight: 6}}
+  />
+
+  <Text
+    style={[
+      styles.label,
+      {
+        color: colors.textSub,
+        marginTop: 0,
+        marginBottom: 0,
+      },
+    ]}>
+    Certificate Date *
+  </Text>
+</View>
+
+<View style={styles.dateField}>
+  <DatePickerField
+    label="Select certificate date"
+    value={dateFrom}
+    onPress={() => setShowFromPicker(true)}
+    colors={colors}
+  />
+</View>
+
+{/* Multi-day toggle */}
+
+<TouchableOpacity
+  onPress={() => {
+    setIsDurationEvent(prev => {
+      if (prev) {
+        setDateTo(null);
+      }
+      return !prev;
+    });
+  }}
+  style={{
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 14,
+  }}>
+
+  <MaterialCommunityIcons
+    name={
+      isDurationEvent
+        ? 'checkbox-marked'
+        : 'checkbox-blank-outline'
+    }
+    size={22}
+    color={colors.primary}
+    style={{marginRight: 8}}
+  />
+
+  <Text
+    style={{
+      color: colors.textSub,
+      fontSize: 14,
+      fontWeight: '500',
+    }}>
+    This activity spans multiple days
+  </Text>
+</TouchableOpacity>
+
+{/* Show TO date only if duration event */}
+
+{isDurationEvent && (
+  <View style={{marginTop: 14}}>
+    <Text
+      style={[
+        styles.dateLabel,
+        {color: colors.textMuted},
+      ]}>
+      End Date *
+    </Text>
+
+    <DatePickerField
+      label="Select end date"
+      value={dateTo}
+      onPress={() => setShowToPicker(true)}
+      colors={colors}
+    />
+  </View>
+)}
+
+{/* Clear dates */}
+
+{(dateFrom || dateTo) && (
+  <TouchableOpacity
+    onPress={() => {
+      setDateFrom(null);
+      setDateTo(null);
+      setIsDurationEvent(false);
+    }}
+    style={styles.clearDates}>
+
+    <Text
+      style={[
+        styles.clearDatesText,
+        {color: colors.textMuted},
+      ]}>
+      ✕ Clear dates
+    </Text>
+  </TouchableOpacity>
+)}
         {/* File picker */}
         <TouchableOpacity
-          style={[
-            styles.filePicker,
-            {
-              backgroundColor: colors.card,
-              borderColor: uploadedFile ? colors.primary : '#3b82f6',
-            },
-          ]}
-          onPress={handlePickFile}>
-          <Text style={[styles.filePickerText, {color: uploadedFile ? colors.primary : '#2563eb'}]}>
-            {uploadedFile
-              ? `📎 ${uploadedFile.fileName || 'File selected'} (${((uploadedFile.fileSize || 0) / 1024 / 1024).toFixed(2)} MB)`
-              : `📎 Attach Certificate — Image, PDF or Camera\n(Max ${MAX_FILE_SIZE_MB} MB)`}
-          </Text>
-        </TouchableOpacity>
+  style={[
+    styles.filePicker,
+    {
+      backgroundColor: colors.card,
+      borderColor: uploadedFile ? colors.primary : '#3b82f6',
+    },
+  ]}
+  onPress={handlePickFile}>
+
+  <View style={{alignItems: 'center'}}>
+    <MaterialCommunityIcons
+      name={uploadedFile ? 'file-check-outline' : 'paperclip'}
+      size={24}
+      color={uploadedFile ? colors.primary : '#2563eb'}
+      style={{marginBottom: 6}}
+    />
+
+    <Text
+      style={[
+        styles.filePickerText,
+        {color: uploadedFile ? colors.primary : '#2563eb'},
+      ]}>
+      {uploadedFile
+        ? `${uploadedFile.fileName || 'File selected'} (${(
+            (uploadedFile.fileSize || 0) /
+            1024 /
+            1024
+          ).toFixed(2)} MB)`
+        : `Attach Certificate — Image, PDF or Camera\n(Max ${MAX_FILE_SIZE_MB} MB)`}
+    </Text>
+  </View>
+</TouchableOpacity>
 
         {/* Submit */}
         <TouchableOpacity

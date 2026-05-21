@@ -7,7 +7,7 @@ import VerifyOtpScreen from '../screens/VerifyOtpScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import ResetPasswordScreen from '../screens/ResetPasswordScreen';
 import StudentTabNavigator from './StudentTabNavigator';
-import CertificateViewerScreen from '../screens/CertificateViewerScreen';
+// import CertificateViewerScreen from '../screens/CertificateViewerScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -28,12 +28,12 @@ export default function RootNavigator() {
         <>
           {/* Tab navigator lives at the root of the student stack */}
           <Stack.Screen name="StudentApp" component={StudentTabNavigator} />
-          {/* In-app certificate viewer — pushed on top of tabs */}
-          <Stack.Screen
-            name="CertificateViewer"
-            component={CertificateViewerScreen}
-            options={{animation: 'slide_from_bottom'}}
-          />
+          {/* In-app certificate viewer — pushed on top of tabs
+          // <Stack.Screen
+          //   name="CertificateViewer"
+          //   component={CertificateViewerScreen}
+          //   options={{animation: 'slide_from_bottom'}}
+          // /> */}
         </>
       ) : (
         <>

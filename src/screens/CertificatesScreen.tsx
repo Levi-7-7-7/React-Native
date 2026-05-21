@@ -12,18 +12,36 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 
 const FILTERS = ['all', 'approved', 'pending', 'rejected'];
 
-/** Opens a certificate URL in the device's browser / Drive / built-in viewer */
-const openFile = (url: string) => {
-  Linking.canOpenURL(url).then(supported => {
-    if (supported) {
-      Linking.openURL(url);
-    } else {
-      Alert.alert('Error', 'Cannot open this file on your device.');
+// /** Opens a certificate URL in the device's browser / Drive / built-in viewer */
+// const openFile = (url: string) => {
+//   Linking.canOpenURL(url).then(supported => {
+//     if (supported) {
+//       Linking.openURL(url);
+//     } else {
+//       Alert.alert('Error', 'Cannot open this file on your device.');
+//     }
+//   });
+// };
+
+const openFile = async (url: string) => {
+  try {
+    const supported = await Linking.canOpenURL(url);
+
+    if (!supported) {
+      Alert.alert('Error', 'Cannot open this file.');
+      return;
     }
-  });
+
+    await Linking.openURL(url);
+  } catch (error) {
+    Alert.alert(
+      'Open Failed',
+      'No compatible app found to open this file.',
+    );
+  }
 };
 
-export default function CertificatesScreen({navigation}: any) {
+export default function CertificatesScreen() {
   const {user} = useAuth();
   const {colors} = useTheme();
   const [certificates, setCertificates] = useState<any[]>([]);
@@ -77,19 +95,20 @@ export default function CertificatesScreen({navigation}: any) {
     }
   };
 
-  const handleViewCert = (cert: any) => {
-    if (!cert.fileUrl) { Alert.alert('No file', 'No file attached to this certificate.'); return; }
-    navigation.navigate('CertificateViewer', {
-      fileUrl: cert.fileUrl,
-      fileName: cert.eventName || cert.subcategory || 'certificate',
-    });
-  };
+// const handleViewCert = (cert: any) => {
+//   if (!cert.fileUrl) {
+//     Alert.alert('No file', 'No file attached to this certificate.');
+//     return;
+//   }
 
-  /** Download = open in browser; system handles saving */
-  const handleDownloadOne = (cert: any) => {
-    if (!cert.fileUrl) { Alert.alert('No file', 'No file attached to this certificate.'); return; }
-    openFile(cert.fileUrl);
-  };
+//   openFile(cert.fileUrl);
+// };
+
+  // /** Download = open in browser; system handles saving */
+  // const handleDownloadOne = (cert: any) => {
+  //   if (!cert.fileUrl) { Alert.alert('No file', 'No file attached to this certificate.'); return; }
+  //   openFile(cert.fileUrl);
+  // };
 
   const handleCancelCert = (cert: any) => {
     Alert.alert(
@@ -176,13 +195,23 @@ export default function CertificatesScreen({navigation}: any) {
             </View>
           ))
         ) : filteredCertificates.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyEmoji}>📭</Text>
-            <Text style={[styles.emptyTitle, {color: colors.textSub}]}>No certificates found</Text>
-            <Text style={[styles.emptySub, {color: colors.textMuted}]}>
-              {activeFilter === 'all' ? "You haven't submitted any certificates yet." : `No ${activeFilter} certificates.`}
-            </Text>
-          </View>
+        <View style={styles.emptyState}>
+          <MaterialCommunityIcons
+            name="file-document-outline"
+            size={54}
+            color={colors.textMuted}
+          />
+
+          <Text style={[styles.emptyTitle, {color: colors.textSub}]}>
+            No certificates found
+          </Text>
+
+          <Text style={[styles.emptySub, {color: colors.textMuted}]}>
+            {activeFilter === 'all'
+              ? "You haven't submitted any certificates yet."
+              : `No ${activeFilter} certificates.`}
+          </Text>
+        </View>
         ) : (
           filteredCertificates.map(cert => {
             const {bg: badgeBg, text: badgeText} = getStatusColors(cert.status);
@@ -206,9 +235,20 @@ export default function CertificatesScreen({navigation}: any) {
                 )}
 
                 {(cert.level || cert.prizeType) && (
+                 <View style={{flexDirection: 'row', alignItems: 'center', marginTop: 6}}>
+                  <MaterialCommunityIcons
+                    name="medal-outline"
+                    size={16}
+                    color={colors.textSub}
+                    style={{marginRight: 4}}
+                  />
+
                   <Text style={[styles.levelText, {color: colors.textSub}]}>
-                    🏅 {cert.level}{cert.level && cert.prizeType ? ' — ' : ''}{cert.prizeType}
+                    {cert.level}
+                    {cert.level && cert.prizeType ? ' — ' : ''}
+                    {cert.prizeType}
                   </Text>
+                </View>
                 )}
 
                 <View style={[styles.statusBadge, {backgroundColor: badgeBg}]}>
@@ -216,9 +256,19 @@ export default function CertificatesScreen({navigation}: any) {
                 </View>
 
                 <View style={[styles.certFooter, {borderTopColor: colors.borderLight}]}>
-                  <Text style={[styles.certDate, {color: colors.textMuted}]}>
-                    📅 {cert.createdAt ? new Date(cert.createdAt).toLocaleDateString() : '—'}
-                  </Text>
+                  <View style={{flexDirection: 'row', alignItems: 'center', gap: 4}}>
+                    <MaterialCommunityIcons
+                      name="calendar-month-outline"
+                      size={15}
+                      color={colors.textMuted}
+                    />
+                    <Text style={[styles.certDate, {color: colors.textMuted}]}>
+                      {cert.createdAt
+                        ? new Date(cert.createdAt).toLocaleDateString()
+                        : '—'}
+                    </Text>
+
+                  </View>
                   <Text style={[styles.certPoints, {color: colors.badgeApprovedText}]}>
                     +{displayPoints(cert)} pts
                   </Text>
@@ -241,20 +291,33 @@ export default function CertificatesScreen({navigation}: any) {
 
                 {/* Actions */}
                 <View style={styles.actions}>
-                  {cert.fileUrl && (
+                  {/* {cert.fileUrl && (
                     <TouchableOpacity
                       style={[styles.actionBtn, {backgroundColor: colors.primaryMuted}]}
                       onPress={() => handleViewCert(cert)}>
                       <MaterialCommunityIcons name="eye-outline" size={16} color={colors.primary} />
                       <Text style={[styles.actionBtnText, {color: colors.primary}]}>View</Text>
                     </TouchableOpacity>
-                  )}
+                  )} */}
                   {cert.fileUrl && (
                     <TouchableOpacity
-                      style={[styles.actionBtn, {backgroundColor: colors.primaryMuted}]}
-                      onPress={() => handleDownloadOne(cert)}>
-                      <MaterialCommunityIcons name="open-in-new" size={16} color={colors.primary} />
-                      <Text style={[styles.actionBtnText, {color: colors.primary}]}>Open</Text>
+                      style={[
+                        styles.actionBtn,
+                        {backgroundColor: colors.primaryMuted},
+                      ]}
+                      onPress={() => openFile(cert.fileUrl)}>
+                      <MaterialCommunityIcons
+                        name="open-in-new"
+                        size={16}
+                        color={colors.primary}
+                      />
+                      <Text
+                        style={[
+                          styles.actionBtnText,
+                          {color: colors.primary},
+                        ]}>
+                        Open File
+                      </Text>
                     </TouchableOpacity>
                   )}
                   {cert.status?.toLowerCase() === 'pending' && (

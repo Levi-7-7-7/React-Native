@@ -10,10 +10,17 @@ import DateTimePicker, {
 } from '@react-native-community/datetimepicker';
 import {launchImageLibrary, launchCamera} from 'react-native-image-picker';
 import {pick, types} from '@react-native-documents/picker';
+import ImageResizer from 'react-native-image-resizer';
 import axiosInstance from '../api/axiosInstance';
 import {useTheme, Colors} from '../theme';
 
 const MAX_FILE_SIZE_MB = 5;
+
+// Resize target — large enough to read certificate text clearly,
+// small enough to stay well under 5 MB.
+const RESIZE_WIDTH  = 1200;
+const RESIZE_HEIGHT = 1600;
+const RESIZE_QUALITY = 80; // 0–100
 
 function buildSearchIndex(categories: any[]) {
   const items: any[] = [];
@@ -136,7 +143,6 @@ export default function UploadCertificateScreen({navigation}: any) {
   const [uploading, setUploading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  // Dates — stored as Date objects for pickers, serialised to ISO string for submission
   const [dateFrom, setDateFrom] = useState<Date | null>(null);
   const [dateTo, setDateTo] = useState<Date | null>(null);
   const [showFromPicker, setShowFromPicker] = useState(false);
@@ -149,9 +155,6 @@ export default function UploadCertificateScreen({navigation}: any) {
   const [isOthers, setIsOthers] = useState(false);
   const [othersDescription, setOthersDescription] = useState('');
 
-  // When a search result is selected, setCategoryId fires a useEffect that
-  // would normally wipe subcategoryName. This flag tells that effect to skip
-  // the reset exactly once (the search-selection case).
   const skipSubcategoryReset = useRef(false);
 
   const [catModalOpen, setCatModalOpen] = useState(false);
@@ -177,8 +180,6 @@ export default function UploadCertificateScreen({navigation}: any) {
     }
     const cat = categories.find(c => c._id === categoryId);
     setSubcategories(cat?.subcategories || []);
-    // If a search result just set both categoryId AND subcategoryName together,
-    // skip resetting subcategoryName this one time.
     if (skipSubcategoryReset.current) {
       skipSubcategoryReset.current = false;
     } else {
@@ -223,7 +224,6 @@ export default function UploadCertificateScreen({navigation}: any) {
 
   const selectSearchResult = (item: any) => {
     const cat = categories.find(c => c._id === item.categoryId);
-    // Set the flag BEFORE setCategoryId so the useEffect skips its reset
     skipSubcategoryReset.current = true;
     setCategoryId(item.categoryId);
     setSubcategories(cat?.subcategories || []);
@@ -250,34 +250,22 @@ export default function UploadCertificateScreen({navigation}: any) {
   };
 
   // ── Permission helpers ────────────────────────────────────────────────────
-
-  /**
-   * Requests READ_MEDIA_IMAGES (API 33+) or READ_EXTERNAL_STORAGE (API ≤ 32).
-   * Returns true if permission is already granted or was just granted.
-   * Shows a Settings nudge if permanently denied.
-   */
   const requestMediaPermission = async (): Promise<boolean> => {
     if (Platform.OS !== 'android') return true;
     const permission =
       Platform.Version >= 33
         ? PermissionsAndroid.PERMISSIONS.READ_MEDIA_IMAGES
         : PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE;
-
-    // Already granted — skip dialog
     const already = await PermissionsAndroid.check(permission);
     if (already) return true;
-
     const result = await PermissionsAndroid.request(permission, {
       title: 'Photos & Media Permission',
-      message:
-        'This app needs access to your photos and media to attach certificate images.',
+      message: 'This app needs access to your photos and media to attach certificate images.',
       buttonPositive: 'Allow',
       buttonNegative: 'Deny',
       buttonNeutral: 'Ask Later',
     });
-
     if (result === PermissionsAndroid.RESULTS.GRANTED) return true;
-
     if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
       Alert.alert(
         'Permission Blocked',
@@ -285,41 +273,23 @@ export default function UploadCertificateScreen({navigation}: any) {
         [{text: 'OK'}],
       );
     } else {
-      Alert.alert(
-        'Permission Required',
-        'Photos & Media access is needed to pick a certificate image.',
-      );
+      Alert.alert('Permission Required', 'Photos & Media access is needed to pick a certificate image.');
     }
     return false;
   };
 
-  /**
-   * Requests CAMERA permission.
-   * Returns true if already granted or just granted.
-   * Shows a Settings nudge if permanently denied.
-   */
   const requestCameraPermission = async (): Promise<boolean> => {
     if (Platform.OS !== 'android') return true;
-
-    const already = await PermissionsAndroid.check(
-      PermissionsAndroid.PERMISSIONS.CAMERA,
-    );
+    const already = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.CAMERA);
     if (already) return true;
-
-    const result = await PermissionsAndroid.request(
-      PermissionsAndroid.PERMISSIONS.CAMERA,
-      {
-        title: 'Camera Permission',
-        message:
-          'This app needs camera access to photograph your certificate.',
-        buttonPositive: 'Allow',
-        buttonNegative: 'Deny',
-        buttonNeutral: 'Ask Later',
-      },
-    );
-
+    const result = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA, {
+      title: 'Camera Permission',
+      message: 'This app needs camera access to photograph your certificate.',
+      buttonPositive: 'Allow',
+      buttonNegative: 'Deny',
+      buttonNeutral: 'Ask Later',
+    });
     if (result === PermissionsAndroid.RESULTS.GRANTED) return true;
-
     if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
       Alert.alert(
         'Permission Blocked',
@@ -327,12 +297,40 @@ export default function UploadCertificateScreen({navigation}: any) {
         [{text: 'OK'}],
       );
     } else {
-      Alert.alert(
-        'Permission Required',
-        'Camera access is required to take a photo of your certificate.',
-      );
+      Alert.alert('Permission Required', 'Camera access is required to take a photo of your certificate.');
     }
     return false;
+  };
+
+  // ── Shared resize helper ───────────────────────────────────────────────────
+  /**
+   * Resizes an image asset to RESIZE_WIDTH x RESIZE_HEIGHT at RESIZE_QUALITY.
+   * onlyScaleDown ensures small images are never upscaled.
+   * Falls back to the original asset if ImageResizer throws.
+   */
+  const resizeImage = async (asset: any): Promise<any> => {
+    try {
+      const resized = await ImageResizer.createResizedImage(
+        asset.uri,
+        RESIZE_WIDTH,
+        RESIZE_HEIGHT,
+        'JPEG',
+        RESIZE_QUALITY,
+        0,           // rotation
+        undefined,   // output path — use temp dir
+        false,
+        {mode: 'contain', onlyScaleDown: true},
+      );
+      return {
+        uri: resized.uri,
+        type: 'image/jpeg',
+        fileName: resized.name,
+        fileSize: resized.size,
+      };
+    } catch {
+      // Resize failed — fall back to original so the upload still works
+      return asset;
+    }
   };
 
   // ── Validates that the picked asset is an image or PDF, then stores it ──
@@ -359,13 +357,14 @@ export default function UploadCertificateScreen({navigation}: any) {
     const ok = await requestMediaPermission();
     if (!ok) return;
     const result = await launchImageLibrary({
-      mediaType: 'photo',   // images only — PDFs handled separately via DocumentPicker
-      quality: 0.85,
+      mediaType: 'photo',
+      quality: 1,          // pick full quality — resizer handles compression
       selectionLimit: 1,
       presentationStyle: 'pageSheet',
     });
     if (result.didCancel || !result.assets?.length) return;
-    validateAndSet(result.assets[0]);
+    const resized = await resizeImage(result.assets[0]);
+    validateAndSet(resized);
   };
 
   const pickFromCamera = async () => {
@@ -373,11 +372,12 @@ export default function UploadCertificateScreen({navigation}: any) {
     if (!ok) return;
     const result = await launchCamera({
       mediaType: 'photo',
-      quality: 0.85,
+      quality: 1,          // pick full quality — resizer handles compression
       saveToPhotos: false,
     });
     if (result.didCancel || !result.assets?.length) return;
-    validateAndSet(result.assets[0]);
+    const resized = await resizeImage(result.assets[0]);
+    validateAndSet(resized);
   };
 
   const pickPdf = async () => {
@@ -491,10 +491,8 @@ export default function UploadCertificateScreen({navigation}: any) {
     ...categories.map(c => ({label: c.name, value: c._id})),
     {label: 'Others', value: '__others__'},
   ];
-  const subItems = subcategories.map((s: any) => ({label: s.name, value: s.name}));  
+  const subItems = subcategories.map((s: any) => ({label: s.name, value: s.name}));
   const levelItems = currentSub?.levels?.map((l: any) => ({label: l.name, value: l.name})) || [];
-  // Build prize options from the ACTUAL prizes on the selected level (not a hardcoded list).
-  // e.g. "Professional Body Competitions" only has Participation — no First/Second/Third.
   const selectedLevelObj = currentSub?.levels?.find((l: any) => l.name === levelSelected);
   const prizeItems = selectedLevelObj
     ? selectedLevelObj.prizes.map((p: any) => ({label: p.type, value: p.type}))
@@ -523,8 +521,6 @@ export default function UploadCertificateScreen({navigation}: any) {
         onSelect={v => {
           setLevelSelected(v);
           setPrizeType('');
-          // Auto-select prize type when the level only has one option
-          // (e.g. "Professional Body Competitions" only offers Participation)
           const lvl = currentSub?.levels?.find((l: any) => l.name === v);
           if (lvl?.prizes?.length === 1) { setPrizeType(lvl.prizes[0].type); }
         }}
@@ -536,7 +532,7 @@ export default function UploadCertificateScreen({navigation}: any) {
         onClose={() => setPrizeModalOpen(false)}
       />
 
-      {/* Native date pickers — shown as dialogs on Android, inline on iOS */}
+      {/* Native date pickers */}
       {showFromPicker && (
         <DateTimePicker
           value={dateFrom || new Date()}
@@ -547,7 +543,6 @@ export default function UploadCertificateScreen({navigation}: any) {
             setShowFromPicker(Platform.OS === 'ios');
             if (event.type !== 'dismissed' && selected) {
               setDateFrom(selected);
-              // If "to" date is before "from", reset it
               if (dateTo && selected > dateTo) setDateTo(null);
             }
           }}
@@ -670,16 +665,20 @@ export default function UploadCertificateScreen({navigation}: any) {
                   <Text style={[styles.chevron, {color: colors.textMuted}]}>▼</Text>
                 </TouchableOpacity>
 
-                <Text style={[styles.label, {color: colors.textSub}]}>Prize Type</Text>
-                <TouchableOpacity
-                  style={[styles.selector, {backgroundColor: colors.inputBg, borderColor: colors.border}]}
-                  onPress={() => setPrizeModalOpen(true)}>
-                  <Text style={[prizeType ? styles.selectorText : styles.selectorPH,
-                    {color: prizeType ? colors.text : colors.textMuted}]}>
-                    {prizeType || 'Select prize type'}
-                  </Text>
-                  <Text style={[styles.chevron, {color: colors.textMuted}]}>▼</Text>
-                </TouchableOpacity>
+                {levelSelected && (
+                  <>
+                    <Text style={[styles.label, {color: colors.textSub}]}>Prize Type</Text>
+                    <TouchableOpacity
+                      style={[styles.selector, {backgroundColor: colors.inputBg, borderColor: colors.border}]}
+                      onPress={() => setPrizeModalOpen(true)}>
+                      <Text style={[prizeType ? styles.selectorText : styles.selectorPH,
+                        {color: prizeType ? colors.text : colors.textMuted}]}>
+                        {prizeType || 'Select prize type'}
+                      </Text>
+                      <Text style={[styles.chevron, {color: colors.textMuted}]}>▼</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
               </>
             )}
 
@@ -712,7 +711,7 @@ export default function UploadCertificateScreen({navigation}: any) {
           </>
         )}
 
-        {/* Date / Duration — calendar pickers */}
+        {/* Date / Duration */}
         <Text style={[styles.label, {color: colors.textSub}]}>
           📅 Certificate Date / Activity Duration
         </Text>
@@ -736,7 +735,6 @@ export default function UploadCertificateScreen({navigation}: any) {
             />
           </View>
         </View>
-        {/* Clear dates */}
         {(dateFrom || dateTo) && (
           <TouchableOpacity
             onPress={() => { setDateFrom(null); setDateTo(null); }}

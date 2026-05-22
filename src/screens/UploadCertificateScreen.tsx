@@ -5,6 +5,7 @@ import {
   FlatList, StatusBar, PermissionsAndroid,
   Animated,
 } from 'react-native';
+import {ScrollView} from 'react-native-gesture-handler';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import DateTimePicker, {
   DateTimePickerEvent,
@@ -12,59 +13,38 @@ import DateTimePicker, {
 import {launchImageLibrary, launchCamera} from 'react-native-image-picker';
 import {pick, types} from '@react-native-documents/picker';
 import ImageResizer from 'react-native-image-resizer';
-import RNFS from 'react-native-fs'; // ✅ FIX #2: import RNFS for temp file cleanup
+import RNFS from 'react-native-fs';
 import axiosInstance from '../api/axiosInstance';
 import {useTheme, Colors} from '../theme';
-
 import {useFocusEffect} from '@react-navigation/native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
-
 import LottieView from 'lottie-react-native';
-// In DashboardScreen, CertificatesScreen, UploadCertificateScreen
-import { ScrollView } from 'react-native-gesture-handler'; // ← use this, not react-native!
+import {tabEmitter} from '../utils/tabEvents';
 
 const MAX_FILE_SIZE_MB = 5;
-
-// Resize target — large enough to read certificate text clearly,
-// small enough to stay well under 5 MB.
 const RESIZE_WIDTH  = 1200;
 const RESIZE_HEIGHT = 1600;
-const RESIZE_QUALITY = 100; // 0–100
-
-
+const RESIZE_QUALITY = 100;
 
 const clearTempCache = async () => {
   try {
-    const tempDirs = [
-      RNFS.CachesDirectoryPath,
-      RNFS.TemporaryDirectoryPath,
-    ];
-
+    const tempDirs = [RNFS.CachesDirectoryPath, RNFS.TemporaryDirectoryPath];
     for (const dir of tempDirs) {
       const exists = await RNFS.exists(dir);
-
       if (!exists) continue;
-
       const files = await RNFS.readDir(dir);
-
       for (const file of files) {
         try {
-          // only delete image/pdf temp files
           if (
-              file.name.endsWith('.jpg') ||
-              file.name.endsWith('.jpeg') ||
-              file.name.endsWith('.png') ||
-              file.name.endsWith('.pdf') ||
-              file.name.endsWith('.webp') ||
-              file.name.endsWith('.heic')
+            file.name.endsWith('.jpg') || file.name.endsWith('.jpeg') ||
+            file.name.endsWith('.png') || file.name.endsWith('.pdf') ||
+            file.name.endsWith('.webp') || file.name.endsWith('.heic')
           ) {
             await RNFS.unlink(file.path);
           }
         } catch {}
       }
     }
-
-    console.log('✅ Temp cache cleaned');
   } catch (err) {
     console.log('Cache cleanup error:', err);
   }
@@ -85,7 +65,6 @@ function buildSearchIndex(categories: any[]) {
   return items;
 }
 
-// ── Themed modal dropdown ──────────────────────────────────────────────────
 function DropdownModal({
   visible, title, items, selectedValue, onSelect, onClose, colors,
 }: {
@@ -140,12 +119,8 @@ function DropdownModal({
   );
 }
 
-// ── Date picker button ─────────────────────────────────────────────────────
 function DatePickerField({
-  label,
-  value,
-  onPress,
-  colors,
+  label, value, onPress, colors,
 }: {
   label: string;
   value: Date | null;
@@ -157,44 +132,27 @@ function DatePickerField({
     : null;
   return (
     <TouchableOpacity
-  style={[
-    dpf.btn,
-    {
-      backgroundColor: colors.inputBg,
-      borderColor: value ? colors.primary : colors.border,
-    },
-  ]}
-  onPress={onPress}
-  activeOpacity={0.7}>
-
-  <MaterialCommunityIcons
-    name="calendar-month-outline"
-    size={20}
-    color={value ? colors.primary : colors.textMuted}
-    style={dpf.icon}
-  />
-
-  <Text
-    style={[
-      dpf.text,
-      {color: formatted ? colors.text : colors.textMuted},
-    ]}>
-    {formatted || label}
-  </Text>
-
-  {value && (
-    <MaterialCommunityIcons
-      name="check-circle"
-      size={18}
-      color={colors.primary}
-      style={dpf.chevron}
-    />
-  )}
-</TouchableOpacity>
+      style={[dpf.btn, {backgroundColor: colors.inputBg, borderColor: value ? colors.primary : colors.border}]}
+      onPress={onPress}
+      activeOpacity={0.7}>
+      <MaterialCommunityIcons
+        name="calendar-month-outline"
+        size={20}
+        color={value ? colors.primary : colors.textMuted}
+        style={dpf.icon}
+      />
+      <Text style={[dpf.text, {color: formatted ? colors.text : colors.textMuted}]}>
+        {formatted || label}
+      </Text>
+      {value && (
+        <MaterialCommunityIcons name="check-circle" size={18} color={colors.primary} style={dpf.chevron} />
+      )}
+    </TouchableOpacity>
   );
 }
 
-export default function UploadCertificateScreen({navigation}: any) {
+// ← No navigation prop
+export default function UploadCertificateScreen() {
   const {colors} = useTheme();
 
   const [categories, setCategories] = useState<any[]>([]);
@@ -207,31 +165,44 @@ export default function UploadCertificateScreen({navigation}: any) {
   const [eligiblePoints, setEligiblePoints] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-
   const [dateFrom, setDateFrom] = useState<Date | null>(null);
   const [dateTo, setDateTo] = useState<Date | null>(null);
-
   const [isDurationEvent, setIsDurationEvent] = useState(false);
-
   const [showFromPicker, setShowFromPicker] = useState(false);
   const [showToPicker, setShowToPicker] = useState(false);
-
   const [eventName, setEventName] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [isOthers, setIsOthers] = useState(false);
   const [othersDescription, setOthersDescription] = useState('');
-
   const skipSubcategoryReset = useRef(false);
-
   const [catModalOpen, setCatModalOpen] = useState(false);
   const [subModalOpen, setSubModalOpen] = useState(false);
   const [levelModalOpen, setLevelModalOpen] = useState(false);
   const [prizeModalOpen, setPrizeModalOpen] = useState(false);
-
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
+
+  const resetForm = () => {
+    setCategoryId('');
+    setSubcategoryName('');
+    setSubcategories([]);
+    setLevelSelected('');
+    setPrizeType('');
+    setUploadedFile(null);
+    setEligiblePoints(null);
+    setDateFrom(null);
+    setDateTo(null);
+    setIsDurationEvent(false);
+    setEventName('');
+    setSearchQuery('');
+    setIsOthers(false);
+    setOthersDescription('');
+    setSubmitted(false);
+    fadeAnim.setValue(0);
+    scaleAnim.setValue(0.8);
+  };
 
   useEffect(() => {
     axiosInstance
@@ -283,10 +254,9 @@ export default function UploadCertificateScreen({navigation}: any) {
     const idx = buildSearchIndex(categories);
     const q = searchQuery.toLowerCase();
     const results = idx
-      .filter(
-        item =>
-          item.subcategoryName.toLowerCase().includes(q) ||
-          item.categoryName.toLowerCase().includes(q),
+      .filter(item =>
+        item.subcategoryName.toLowerCase().includes(q) ||
+        item.categoryName.toLowerCase().includes(q),
       )
       .slice(0, 10);
     setSearchResults(results);
@@ -296,50 +266,35 @@ export default function UploadCertificateScreen({navigation}: any) {
   useEffect(() => {
     return () => {
       if (uploadedFile?._isTemp && uploadedFile?.uri) {
-        RNFS.exists(uploadedFile.uri)
-          .then(exists => {
-            if (exists) {
-              RNFS.unlink(uploadedFile.uri).catch(() => {});
-            }
-          });
+        RNFS.exists(uploadedFile.uri).then(exists => {
+          if (exists) RNFS.unlink(uploadedFile.uri).catch(() => {});
+        });
       }
     };
   }, []);
 
+  useFocusEffect(
+    useCallback(() => {
+      clearTempCache();
+    }, []),
+  );
 
-useFocusEffect(
-  useCallback(() => {
-    clearTempCache();
-  }, []),
-);
+  // ← Fixed: no navigation.reset, uses tabEmitter instead
+  useEffect(() => {
+    if (submitted) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {toValue: 1, duration: 500, useNativeDriver: true}),
+        Animated.spring(scaleAnim, {toValue: 1, friction: 6, tension: 80, useNativeDriver: true}),
+      ]).start();
 
-useEffect(() => {
-  if (submitted) {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 500,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        friction: 6,
-        tension: 80,
-        useNativeDriver: true,
-      }),
-    ]).start();
+      const timer = setTimeout(() => {
+        resetForm();
+        tabEmitter.emit('switchTab', 0); // ← go to Dashboard
+      }, 2600);
 
-    // Auto redirect after animation
-    const timer = setTimeout(() => {
-      navigation.reset({
-        index: 0,
-        routes: [{name: 'Dashboard'}],
-      });
-    }, 2600);
-
-    return () => clearTimeout(timer);
-  }
-}, [submitted, fadeAnim, scaleAnim, navigation]);
+      return () => clearTimeout(timer);
+    }
+  }, [submitted]);
 
   const selectSearchResult = (item: any) => {
     const cat = categories.find(c => c._id === item.categoryId);
@@ -368,7 +323,6 @@ useEffect(() => {
     setOthersDescription('');
   };
 
-  // ── Permission helpers ────────────────────────────────────────────────────
   const requestMediaPermission = async (): Promise<boolean> => {
     if (Platform.OS !== 'android') return true;
     const permission =
@@ -386,11 +340,7 @@ useEffect(() => {
     });
     if (result === PermissionsAndroid.RESULTS.GRANTED) return true;
     if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
-      Alert.alert(
-        'Permission Blocked',
-        'Photos & Media access was permanently denied.\n\nGo to Settings → Apps → ActivityPoints → Permissions and enable "Photos & Media".',
-        [{text: 'OK'}],
-      );
+      Alert.alert('Permission Blocked', 'Go to Settings → Apps → ActivityPoints → Permissions and enable "Photos & Media".');
     } else {
       Alert.alert('Permission Required', 'Photos & Media access is needed to pick a certificate image.');
     }
@@ -410,127 +360,56 @@ useEffect(() => {
     });
     if (result === PermissionsAndroid.RESULTS.GRANTED) return true;
     if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
-      Alert.alert(
-        'Permission Blocked',
-        'Camera access was permanently denied.\n\nGo to Settings → Apps → ActivityPoints → Permissions and enable "Camera".',
-        [{text: 'OK'}],
-      );
+      Alert.alert('Permission Blocked', 'Go to Settings → Apps → ActivityPoints → Permissions and enable "Camera".');
     } else {
       Alert.alert('Permission Required', 'Camera access is required to take a photo of your certificate.');
     }
     return false;
   };
 
-  // ── Shared resize helper ───────────────────────────────────────────────────
-  /**
-   * Resizes an image asset to RESIZE_WIDTH x RESIZE_HEIGHT at RESIZE_QUALITY.
-   * onlyScaleDown ensures small images are never upscaled.
-   * Falls back to the original asset if ImageResizer throws.
-   *
-   * ✅ FIX #2: tracks whether the returned URI is a resized temp file
-   * so handleSubmit can unlink it after upload.
-   */
-  const resizeImageIfNeeded = async (
-        asset: any,
-      ): Promise<{file: any; isTemp: boolean}> => {
-        const sizeInMB = (asset.fileSize || 0) / 1024 / 1024;
-
-        // ✅ Small images → keep original
-        if (sizeInMB <= MAX_FILE_SIZE_MB) {
-          return {
-            file: asset,
-            isTemp: false,
-          };
-        }
-
-        // ✅ Large images → compress
-        Alert.alert(
-          'Optimizing Image',
-          'Large image detected. Compressing for faster upload...',
-        );
-
-        try {
-          const resized = await ImageResizer.createResizedImage(
-            asset.uri,
-            900,
-            1200,
-            'JPEG',
-            60,
-            0,
-            undefined,
-            false,
-            {mode: 'contain', onlyScaleDown: true},
-          );
-
-          return {
-            file: {
-              uri: resized.uri,
-              type: 'image/jpeg',
-              fileName: resized.name,
-              fileSize: resized.size,
-            },
-            isTemp: true,
-          };
-        } catch {
-          return {
-            file: asset,
-            isTemp: false,
-          };
-        }
+  const resizeImageIfNeeded = async (asset: any): Promise<{file: any; isTemp: boolean}> => {
+    const sizeInMB = (asset.fileSize || 0) / 1024 / 1024;
+    if (sizeInMB <= MAX_FILE_SIZE_MB) return {file: asset, isTemp: false};
+    Alert.alert('Optimizing Image', 'Large image detected. Compressing for faster upload...');
+    try {
+      const resized = await ImageResizer.createResizedImage(
+        asset.uri, 900, 1200, 'JPEG', 60, 0, undefined, false,
+        {mode: 'contain', onlyScaleDown: true},
+      );
+      return {
+        file: {uri: resized.uri, type: 'image/jpeg', fileName: resized.name, fileSize: resized.size},
+        isTemp: true,
       };
-  // ── Validates that the picked asset is an image or PDF, then stores it ──
+    } catch {
+      return {file: asset, isTemp: false};
+    }
+  };
+
   const validateAndSet = (asset: any, isTemp = false) => {
     if ((asset.fileSize || 0) > MAX_FILE_SIZE_MB * 1024 * 1024) {
       Alert.alert('File too large', `File must be under ${MAX_FILE_SIZE_MB} MB.`);
-
-      if (isTemp && asset.uri) {
-        RNFS.unlink(asset.uri).catch(() => {});
-      }
-
+      if (isTemp && asset.uri) RNFS.unlink(asset.uri).catch(() => {});
       return;
     }
-
     const mime: string = (asset.type || '').toLowerCase();
     const name: string = (asset.fileName || '').toLowerCase();
-
     const isImage = mime.startsWith('image/');
     const isPdf = mime === 'application/pdf' || name.endsWith('.pdf');
-
     if (!isImage && !isPdf) {
-      Alert.alert(
-        'Unsupported file type',
-        'Only images (JPG, PNG, etc.) and PDF files are accepted as certificates.',
-      );
-
-      if (isTemp && asset.uri) {
-        RNFS.unlink(asset.uri).catch(() => {});
-      }
-
+      Alert.alert('Unsupported file type', 'Only images (JPG, PNG, etc.) and PDF files are accepted.');
+      if (isTemp && asset.uri) RNFS.unlink(asset.uri).catch(() => {});
       return;
     }
-
-  // ✅ CLEAN OLD TEMP FILE BEFORE REPLACING
-  setUploadedFile((prev: any) => {
-    if (prev?._isTemp && prev?.uri) {
-      RNFS.unlink(prev.uri).catch(() => {});
-    }
-
-    return {
-      ...asset,
-      _isTemp: isTemp,
-    };
-  });
-};
+    setUploadedFile((prev: any) => {
+      if (prev?._isTemp && prev?.uri) RNFS.unlink(prev.uri).catch(() => {});
+      return {...asset, _isTemp: isTemp};
+    });
+  };
 
   const pickFromGallery = async () => {
     const ok = await requestMediaPermission();
     if (!ok) return;
-    const result = await launchImageLibrary({
-      mediaType: 'photo',
-      quality: 0.7,          // pick full quality — resizer handles compression
-      selectionLimit: 1,
-      presentationStyle: 'pageSheet',
-    });
+    const result = await launchImageLibrary({mediaType: 'photo', quality: 0.7, selectionLimit: 1, presentationStyle: 'pageSheet'});
     if (result.didCancel || !result.assets?.length) return;
     const {file: resized, isTemp} = await resizeImageIfNeeded(result.assets[0]);
     validateAndSet(resized, isTemp);
@@ -539,13 +418,7 @@ useEffect(() => {
   const pickFromCamera = async () => {
     const ok = await requestCameraPermission();
     if (!ok) return;
-    const result = await launchCamera({
-      mediaType: 'photo',
-      quality: 0.7,
-      saveToPhotos: false,
-      includeBase64: false,
-      cameraType: 'back',
-    });
+    const result = await launchCamera({mediaType: 'photo', quality: 0.7, saveToPhotos: false, includeBase64: false, cameraType: 'back'});
     if (result.didCancel || !result.assets?.length) return;
     const {file: resized, isTemp} = await resizeImageIfNeeded(result.assets[0]);
     validateAndSet(resized, isTemp);
@@ -553,10 +426,7 @@ useEffect(() => {
 
   const pickPdf = async () => {
     try {
-      const results = await pick({
-        type: [types.pdf],
-        allowMultiSelection: false,
-      });
+      const results = await pick({type: [types.pdf], allowMultiSelection: false});
       if (!results || results.length === 0) return;
       const file = results[0];
       validateAndSet({
@@ -566,10 +436,7 @@ useEffect(() => {
         fileSize: file.size || 0,
       });
     } catch (err: any) {
-      if (
-        err?.code === 'DOCUMENT_PICKER_CANCELED' ||
-        err?.message?.toLowerCase().includes('cancel')
-      ) return;
+      if (err?.code === 'DOCUMENT_PICKER_CANCELED' || err?.message?.toLowerCase().includes('cancel')) return;
       Alert.alert('PDF Error', 'Unable to open PDF picker. Please try again.');
     }
   };
@@ -579,60 +446,38 @@ useEffect(() => {
       'Attach Certificate',
       'Choose how to attach your certificate.',
       [
-        {text: '📷  Take Photo',        onPress: pickFromCamera},
-        {text: '🖼️  Choose Image',      onPress: pickFromGallery},
-        {text: '📄  Choose PDF',        onPress: pickPdf},
+        {text: '📷  Take Photo', onPress: pickFromCamera},
+        {text: '🖼️  Choose Image', onPress: pickFromGallery},
+        {text: '📄  Choose PDF', onPress: pickPdf},
         {text: 'Cancel', style: 'cancel'},
       ],
       {cancelable: true},
     );
   };
 
-  const currentSub =
-    !isOthers && subcategoryName
-      ? subcategories.find(s => s.name === subcategoryName)
-      : null;
+  const currentSub = !isOthers && subcategoryName
+    ? subcategories.find(s => s.name === subcategoryName)
+    : null;
   const hasLevels = currentSub?.levels?.length > 0;
 
   const canSubmit = isOthers
-  ? othersDescription.trim() &&
-    uploadedFile &&
-    dateFrom &&
-    (!isDurationEvent || dateTo) &&
-    !uploading
-  : categoryId &&
-    subcategoryName &&
-    uploadedFile &&
-    dateFrom &&
-    (!isDurationEvent || dateTo) &&
-    !uploading;
-
+    ? othersDescription.trim() && uploadedFile && dateFrom && (!isDurationEvent || dateTo) && !uploading
+    : categoryId && subcategoryName && uploadedFile && dateFrom && (!isDurationEvent || dateTo) && !uploading;
 
   const handleSubmit = async () => {
-if (!dateFrom) {
-  Alert.alert(
-    'Certificate Date Required',
-    'Please select the certificate date.',
-  );
-  return;
-}
-
-if (isDurationEvent && !dateTo) {
-  Alert.alert(
-    'End Date Required',
-    'Please select the activity end date.',
-  );
-  return;
-}
+    if (!dateFrom) {
+      Alert.alert('Certificate Date Required', 'Please select the certificate date.');
+      return;
+    }
+    if (isDurationEvent && !dateTo) {
+      Alert.alert('End Date Required', 'Please select the activity end date.');
+      return;
+    }
     if (!canSubmit) return;
-
     setUploading(true);
-
     const file = uploadedFile;
-
     try {
       const formData = new FormData();
-
       if (isOthers) {
         formData.append('categoryId', 'others');
         formData.append('subcategoryName', othersDescription.trim());
@@ -644,53 +489,23 @@ if (isDurationEvent && !dateTo) {
         formData.append('level', levelSelected || '');
         formData.append('prizeType', prizeType || '');
       }
-
-      if (dateFrom) {
-        formData.append(
-          'dateFrom',
-          dateFrom.toISOString().split('T')[0],
-        );
-      }
-
-      if (dateTo) {
-        formData.append(
-          'dateTo',
-          dateTo.toISOString().split('T')[0],
-        );
-      }
-
-      if (eventName.trim()) {
-        formData.append('eventName', eventName.trim());
-      }
-
+      if (dateFrom) formData.append('dateFrom', dateFrom.toISOString().split('T')[0]);
+      if (dateTo) formData.append('dateTo', dateTo.toISOString().split('T')[0]);
+      if (eventName.trim()) formData.append('eventName', eventName.trim());
       formData.append('file', {
-        uri:
-          Platform.OS === 'android'
-            ? file.uri
-            : file.uri.replace('file://', ''),
+        uri: Platform.OS === 'android' ? file.uri : file.uri.replace('file://', ''),
         type: file.type || 'image/jpeg',
         name: file.fileName || 'certificate.jpg',
       } as any);
-
       await axiosInstance.post('/certificates/upload', formData, {
         headers: {'Content-Type': 'multipart/form-data'},
       });
-
       await clearTempCache();
-
       setSubmitted(true);
-
     } catch (err) {
-      Alert.alert(
-        'Upload Failed',
-        'Please check your connection and try again.',
-      );
-
+      Alert.alert('Upload Failed', 'Please check your connection and try again.');
     } finally {
-      // ✅ ALWAYS CLEAN TEMP FILES
-      if (file?._isTemp && file?.uri) {
-        RNFS.unlink(file.uri).catch(() => {});
-      }
+      if (file?._isTemp && file?.uri) RNFS.unlink(file.uri).catch(() => {});
       setUploadedFile(null);
       setUploading(false);
     }
@@ -700,35 +515,22 @@ if (isDurationEvent && !dateTo) {
     return (
       <SafeAreaView style={[styles.safeArea, {backgroundColor: colors.successBg}]}>
         <Animated.View
-  style={[
-    styles.successContainer,
-    {
-      backgroundColor: colors.successBg,
-      opacity: fadeAnim,
-      transform: [{scale: scaleAnim}],
-    },
-  ]}>
+          style={[
+            styles.successContainer,
+            {backgroundColor: colors.successBg, opacity: fadeAnim, transform: [{scale: scaleAnim}]},
+          ]}>
           <LottieView
-  source={require('../assets/animations/success.json')}
-  autoPlay
-  loop={false}
-  style={{
-    width: 220,
-    height: 220,
-    marginBottom: 10,
-  }}
-/>
+            source={require('../assets/animations/successes.json')}
+            autoPlay
+            loop={false}
+            style={{width: 220, height: 220, marginBottom: 10}}
+          />
           <Text style={[styles.successTitle, {color: colors.successTitle}]}>
             Certificate Submitted!
           </Text>
           <Text style={[styles.successSub, {color: colors.successSub}]}>
             Your certificate has been submitted and is pending approval by your tutor.
           </Text>
-          {/* <TouchableOpacity
-            style={[styles.successBtn, {backgroundColor: colors.successBtn}]}
-            onPress={() => { setSubmitted(false); navigation.navigate('Dashboard'); }}>
-            <Text style={styles.successBtnText}>Back to Dashboard</Text>
-          </TouchableOpacity> */}
         </Animated.View>
       </SafeAreaView>
     );
@@ -742,21 +544,15 @@ if (isDurationEvent && !dateTo) {
   const subItems = subcategories.map((s: any) => ({label: s.name, value: s.name}));
   const levelItems = currentSub?.levels?.map((l: any) => ({label: l.name, value: l.name})) || [];
   const selectedLevelObj = currentSub?.levels?.find((l: any) => l.name === levelSelected);
-  const prizeItems = selectedLevelObj
-    ? selectedLevelObj.prizes.map((p: any) => ({label: p.type, value: p.type}))
-    : [];
+  const prizeItems = selectedLevelObj ? selectedLevelObj.prizes.map((p: any) => ({label: p.type, value: p.type})) : [];
 
   return (
     <SafeAreaView style={[styles.safeArea, {backgroundColor: colors.bg}]}>
       <StatusBar barStyle={colors.statusBar} backgroundColor={colors.bg} />
 
-      {/* Modal dropdowns */}
       <DropdownModal visible={catModalOpen} title="Select Category" items={catItems}
         selectedValue={categoryId} colors={colors}
-        onSelect={v => {
-          if (v === '__others__') { activateOthers(); }
-          else { setCategoryId(v); setIsOthers(false); }
-        }}
+        onSelect={v => { if (v === '__others__') { activateOthers(); } else { setCategoryId(v); setIsOthers(false); } }}
         onClose={() => setCatModalOpen(false)}
       />
       <DropdownModal visible={subModalOpen} title="Select Subcategory" items={subItems}
@@ -770,7 +566,7 @@ if (isDurationEvent && !dateTo) {
           setLevelSelected(v);
           setPrizeType('');
           const lvl = currentSub?.levels?.find((l: any) => l.name === v);
-          if (lvl?.prizes?.length === 1) { setPrizeType(lvl.prizes[0].type); }
+          if (lvl?.prizes?.length === 1) setPrizeType(lvl.prizes[0].type);
         }}
         onClose={() => setLevelModalOpen(false)}
       />
@@ -780,7 +576,6 @@ if (isDurationEvent && !dateTo) {
         onClose={() => setPrizeModalOpen(false)}
       />
 
-      {/* Native date pickers */}
       {showFromPicker && (
         <DateTimePicker
           value={dateFrom || new Date()}
@@ -816,14 +611,9 @@ if (isDurationEvent && !dateTo) {
         keyboardShouldPersistTaps="handled">
         <Text style={[styles.pageTitle, {color: colors.primary}]}>Upload Certificate</Text>
 
-        {/* Search */}
         <Text style={[styles.label, {color: colors.textSub}]}>Search Certificate Type</Text>
         <TextInput
-          style={[styles.input, {
-            backgroundColor: colors.inputBg,
-            borderColor: colors.border,
-            color: colors.text,
-          }]}
+          style={[styles.input, {backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text}]}
           placeholder="Search by name, category…"
           placeholderTextColor={colors.textMuted}
           value={searchQuery}
@@ -836,39 +626,26 @@ if (isDurationEvent && !dateTo) {
                 key={i}
                 style={[styles.dropdownItem, {borderBottomColor: colors.borderLight}]}
                 onPress={() => selectSearchResult(item)}>
-                <Text style={[styles.dropdownMain, {color: colors.textSub}]}>
-                  {item.subcategoryName}
-                </Text>
-                <Text style={[styles.dropdownSub, {color: colors.textMuted}]}>
-                  {item.categoryName}
-                </Text>
+                <Text style={[styles.dropdownMain, {color: colors.textSub}]}>{item.subcategoryName}</Text>
+                <Text style={[styles.dropdownSub, {color: colors.textMuted}]}>{item.categoryName}</Text>
               </TouchableOpacity>
             ))}
             <TouchableOpacity
               style={[styles.dropdownItem, {borderBottomColor: colors.borderLight}]}
               onPress={activateOthers}>
               <Text style={[styles.dropdownMain, {color: colors.textSub}]}>Others</Text>
-              <Text style={[styles.dropdownSub, {color: colors.textMuted}]}>
-                Certificate not listed above
-              </Text>
+              <Text style={[styles.dropdownSub, {color: colors.textMuted}]}>Certificate not listed above</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        {/* Others mode */}
         {isOthers ? (
           <View style={[styles.othersBox, {backgroundColor: colors.primaryMuted, borderColor: colors.primaryLight}]}>
             <View style={styles.othersHeader}>
               <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
-  <MaterialCommunityIcons
-    name="paperclip"
-    size={16}
-    color={colors.primary}
-  />
-  <Text style={[styles.othersLabel, {color: colors.primary}]}>
-    Others
-  </Text>
-</View>
+                <MaterialCommunityIcons name="paperclip" size={16} color={colors.primary} />
+                <Text style={[styles.othersLabel, {color: colors.primary}]}>Others</Text>
+              </View>
               <TouchableOpacity onPress={() => { setIsOthers(false); setOthersDescription(''); }}>
                 <Text style={[styles.clearText, {color: colors.dangerText}]}>✕ Clear</Text>
               </TouchableOpacity>
@@ -887,8 +664,7 @@ if (isDurationEvent && !dateTo) {
             <TouchableOpacity
               style={[styles.selector, {backgroundColor: colors.inputBg, borderColor: colors.border}]}
               onPress={() => setCatModalOpen(true)}>
-              <Text style={[selectedCat ? styles.selectorText : styles.selectorPH,
-                {color: selectedCat ? colors.text : colors.textMuted}]}>
+              <Text style={[selectedCat ? styles.selectorText : styles.selectorPH, {color: selectedCat ? colors.text : colors.textMuted}]}>
                 {selectedCat ? selectedCat.name : 'Select category'}
               </Text>
               <Text style={[styles.chevron, {color: colors.textMuted}]}>▼</Text>
@@ -900,8 +676,7 @@ if (isDurationEvent && !dateTo) {
                 <TouchableOpacity
                   style={[styles.selector, {backgroundColor: colors.inputBg, borderColor: colors.border}]}
                   onPress={() => setSubModalOpen(true)}>
-                  <Text style={[subcategoryName ? styles.selectorText : styles.selectorPH,
-                    {color: subcategoryName ? colors.text : colors.textMuted}]}>
+                  <Text style={[subcategoryName ? styles.selectorText : styles.selectorPH, {color: subcategoryName ? colors.text : colors.textMuted}]}>
                     {subcategoryName || 'Select subcategory'}
                   </Text>
                   <Text style={[styles.chevron, {color: colors.textMuted}]}>▼</Text>
@@ -915,8 +690,7 @@ if (isDurationEvent && !dateTo) {
                 <TouchableOpacity
                   style={[styles.selector, {backgroundColor: colors.inputBg, borderColor: colors.border}]}
                   onPress={() => setLevelModalOpen(true)}>
-                  <Text style={[levelSelected ? styles.selectorText : styles.selectorPH,
-                    {color: levelSelected ? colors.text : colors.textMuted}]}>
+                  <Text style={[levelSelected ? styles.selectorText : styles.selectorPH, {color: levelSelected ? colors.text : colors.textMuted}]}>
                     {levelSelected || 'Select level'}
                   </Text>
                   <Text style={[styles.chevron, {color: colors.textMuted}]}>▼</Text>
@@ -928,8 +702,7 @@ if (isDurationEvent && !dateTo) {
                     <TouchableOpacity
                       style={[styles.selector, {backgroundColor: colors.inputBg, borderColor: colors.border}]}
                       onPress={() => setPrizeModalOpen(true)}>
-                      <Text style={[prizeType ? styles.selectorText : styles.selectorPH,
-                        {color: prizeType ? colors.text : colors.textMuted}]}>
+                      <Text style={[prizeType ? styles.selectorText : styles.selectorPH, {color: prizeType ? colors.text : colors.textMuted}]}>
                         {prizeType || 'Select prize type'}
                       </Text>
                       <Text style={[styles.chevron, {color: colors.textMuted}]}>▼</Text>
@@ -941,9 +714,7 @@ if (isDurationEvent && !dateTo) {
 
             {subcategoryName && (
               <>
-                <Text style={[styles.label, {color: colors.textSub}]}>
-                  Event / Competition Name
-                </Text>
+                <Text style={[styles.label, {color: colors.textSub}]}>Event / Competition Name</Text>
                 <TextInput
                   style={[styles.input, {backgroundColor: colors.inputBg, borderColor: colors.border, color: colors.text}]}
                   placeholder="e.g. NPTEL Python 2024, Hackathon MTI"
@@ -958,191 +729,72 @@ if (isDurationEvent && !dateTo) {
             {eligiblePoints !== null && (
               <View style={[styles.eligibleBox, {backgroundColor: colors.cardWarn, borderColor: colors.badgePendingText}]}>
                 <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
-  <MaterialCommunityIcons
-    name="trophy-award"
-    size={18}
-    color={colors.warnText}
-  />
-  <Text style={[styles.eligibleText, {color: colors.warnText}]}>
-    Eligible Points: {eligiblePoints}
-  </Text>
-</View>
-                <Text style={[styles.eligibleNote, {color: colors.warnNote}]}>
-                  *Final points will be approved by tutor
-                </Text>
+                  <MaterialCommunityIcons name="trophy-award" size={18} color={colors.warnText} />
+                  <Text style={[styles.eligibleText, {color: colors.warnText}]}>Eligible Points: {eligiblePoints}</Text>
+                </View>
+                <Text style={[styles.eligibleNote, {color: colors.warnNote}]}>*Final points will be approved by tutor</Text>
               </View>
             )}
           </>
         )}
 
-        {/* Date / Duration */}
-        {/* Date / Duration */}
+        <View style={{flexDirection: 'row', alignItems: 'center', marginTop: 14, marginBottom: 6}}>
+          <MaterialCommunityIcons name="calendar-range" size={18} color={colors.textSub} style={{marginRight: 6}} />
+          <Text style={[styles.label, {color: colors.textSub, marginTop: 0, marginBottom: 0}]}>Certificate Date *</Text>
+        </View>
+        <View style={styles.dateField}>
+          <DatePickerField label="Select certificate date" value={dateFrom} onPress={() => setShowFromPicker(true)} colors={colors} />
+        </View>
 
-<View
-  style={{
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 14,
-    marginBottom: 6,
-  }}>
-  <MaterialCommunityIcons
-    name="calendar-range"
-    size={18}
-    color={colors.textSub}
-    style={{marginRight: 6}}
-  />
-
-  <Text
-    style={[
-      styles.label,
-      {
-        color: colors.textSub,
-        marginTop: 0,
-        marginBottom: 0,
-      },
-    ]}>
-    Certificate Date *
-  </Text>
-</View>
-
-<View style={styles.dateField}>
-  <DatePickerField
-    label="Select certificate date"
-    value={dateFrom}
-    onPress={() => setShowFromPicker(true)}
-    colors={colors}
-  />
-</View>
-
-{/* Multi-day toggle */}
-
-<TouchableOpacity
-  onPress={() => {
-    setIsDurationEvent(prev => {
-      if (prev) {
-        setDateTo(null);
-      }
-      return !prev;
-    });
-  }}
-  style={{
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 14,
-  }}>
-
-  <MaterialCommunityIcons
-    name={
-      isDurationEvent
-        ? 'checkbox-marked'
-        : 'checkbox-blank-outline'
-    }
-    size={22}
-    color={colors.primary}
-    style={{marginRight: 8}}
-  />
-
-  <Text
-    style={{
-      color: colors.textSub,
-      fontSize: 14,
-      fontWeight: '500',
-    }}>
-    This activity spans multiple days
-  </Text>
-</TouchableOpacity>
-
-{/* Show TO date only if duration event */}
-
-{isDurationEvent && (
-  <View style={{marginTop: 14}}>
-    <Text
-      style={[
-        styles.dateLabel,
-        {color: colors.textMuted},
-      ]}>
-      End Date *
-    </Text>
-
-    <DatePickerField
-      label="Select end date"
-      value={dateTo}
-      onPress={() => setShowToPicker(true)}
-      colors={colors}
-    />
-  </View>
-)}
-
-{/* Clear dates */}
-
-{(dateFrom || dateTo) && (
-  <TouchableOpacity
-    onPress={() => {
-      setDateFrom(null);
-      setDateTo(null);
-      setIsDurationEvent(false);
-    }}
-    style={styles.clearDates}>
-
-    <Text
-      style={[
-        styles.clearDatesText,
-        {color: colors.textMuted},
-      ]}>
-      ✕ Clear dates
-    </Text>
-  </TouchableOpacity>
-)}
-        {/* File picker */}
         <TouchableOpacity
-  style={[
-    styles.filePicker,
-    {
-      backgroundColor: colors.card,
-      borderColor: uploadedFile ? colors.primary : '#3b82f6',
-    },
-  ]}
-  onPress={handlePickFile}>
+          onPress={() => { setIsDurationEvent(prev => { if (prev) setDateTo(null); return !prev; }); }}
+          style={{flexDirection: 'row', alignItems: 'center', marginTop: 14}}>
+          <MaterialCommunityIcons
+            name={isDurationEvent ? 'checkbox-marked' : 'checkbox-blank-outline'}
+            size={22} color={colors.primary} style={{marginRight: 8}}
+          />
+          <Text style={{color: colors.textSub, fontSize: 14, fontWeight: '500'}}>This activity spans multiple days</Text>
+        </TouchableOpacity>
 
-  <View style={{alignItems: 'center'}}>
-    <MaterialCommunityIcons
-      name={uploadedFile ? 'file-check-outline' : 'paperclip'}
-      size={24}
-      color={uploadedFile ? colors.primary : '#2563eb'}
-      style={{marginBottom: 6}}
-    />
+        {isDurationEvent && (
+          <View style={{marginTop: 14}}>
+            <Text style={[styles.dateLabel, {color: colors.textMuted}]}>End Date *</Text>
+            <DatePickerField label="Select end date" value={dateTo} onPress={() => setShowToPicker(true)} colors={colors} />
+          </View>
+        )}
 
-    <Text
-      style={[
-        styles.filePickerText,
-        {color: uploadedFile ? colors.primary : '#2563eb'},
-      ]}>
-      {uploadedFile
-        ? `${uploadedFile.fileName || 'File selected'} (${(
-            (uploadedFile.fileSize || 0) /
-            1024 /
-            1024
-          ).toFixed(2)} MB)`
-        : `Attach Certificate — Image, PDF or Camera\n(Max ${MAX_FILE_SIZE_MB} MB)`}
-    </Text>
-  </View>
-</TouchableOpacity>
+        {(dateFrom || dateTo) && (
+          <TouchableOpacity
+            onPress={() => { setDateFrom(null); setDateTo(null); setIsDurationEvent(false); }}
+            style={styles.clearDates}>
+            <Text style={[styles.clearDatesText, {color: colors.textMuted}]}>✕ Clear dates</Text>
+          </TouchableOpacity>
+        )}
 
-        {/* Submit */}
         <TouchableOpacity
-          style={[
-            styles.submitBtn,
-            {backgroundColor: colors.primaryBtn},
-            !canSubmit && styles.submitDisabled,
-          ]}
+          style={[styles.filePicker, {backgroundColor: colors.card, borderColor: uploadedFile ? colors.primary : '#3b82f6'}]}
+          onPress={handlePickFile}>
+          <View style={{alignItems: 'center'}}>
+            <MaterialCommunityIcons
+              name={uploadedFile ? 'file-check-outline' : 'paperclip'}
+              size={24} color={uploadedFile ? colors.primary : '#2563eb'} style={{marginBottom: 6}}
+            />
+            <Text style={[styles.filePickerText, {color: uploadedFile ? colors.primary : '#2563eb'}]}>
+              {uploadedFile
+                ? `${uploadedFile.fileName || 'File selected'} (${((uploadedFile.fileSize || 0) / 1024 / 1024).toFixed(2)} MB)`
+                : `Attach Certificate — Image, PDF or Camera\n(Max ${MAX_FILE_SIZE_MB} MB)`}
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.submitBtn, {backgroundColor: colors.primaryBtn}, !canSubmit && styles.submitDisabled]}
           onPress={handleSubmit}
           disabled={!canSubmit}>
           {uploading ? (
             <View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}>
               <ActivityIndicator color="#fff" />
-              <Text style={{color: '#fff', fontWeight: '600'}}>
-                Uploading...
-              </Text>
+              <Text style={{color: '#fff', fontWeight: '600'}}>Uploading...</Text>
             </View>
           ) : (
             <Text style={styles.submitText}>Submit Certificate</Text>
@@ -1153,34 +805,20 @@ if (isDurationEvent && !dateTo) {
   );
 }
 
-// ── Dropdown modal styles ──────────────────────────────────────────────────
 const dm = StyleSheet.create({
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-  },
+  overlay: {...StyleSheet.absoluteFillObject},
   sheet: {
-    position: 'absolute',
-    bottom: 0, left: 0, right: 0,
+    position: 'absolute', bottom: 0, left: 0, right: 0,
     borderTopLeftRadius: 20, borderTopRightRadius: 20,
-    maxHeight: '70%',
-    paddingBottom: Platform.OS === 'android' ? 24 : 8,
+    maxHeight: '70%', paddingBottom: Platform.OS === 'android' ? 24 : 8,
   },
-  sheetTitle: {
-    fontSize: 16, fontWeight: '700',
-    padding: 18, borderBottomWidth: 1,
-  },
-  item: {
-    paddingHorizontal: 18, paddingVertical: 16,
-    borderBottomWidth: 1,
-  },
+  sheetTitle: {fontSize: 16, fontWeight: '700', padding: 18, borderBottomWidth: 1},
+  item: {paddingHorizontal: 18, paddingVertical: 16, borderBottomWidth: 1},
   itemText: {fontSize: 15, fontWeight: '500'},
-  cancelBtn: {
-    margin: 12, padding: 14, borderRadius: 12, alignItems: 'center',
-  },
+  cancelBtn: {margin: 12, padding: 14, borderRadius: 12, alignItems: 'center'},
   cancelText: {fontSize: 15, fontWeight: '600'},
 });
 
-// ── Date picker field styles ───────────────────────────────────────────────
 const dpf = StyleSheet.create({
   btn: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
@@ -1192,36 +830,25 @@ const dpf = StyleSheet.create({
   chevron: {fontSize: 14, fontWeight: '700'},
 });
 
-// ── Main styles ────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   safeArea: {flex: 1},
   container: {flex: 1},
   content: {padding: 20, paddingBottom: 120},
   pageTitle: {fontSize: 22, fontWeight: '800', marginBottom: 20},
   label: {fontSize: 13, fontWeight: '600', marginTop: 14, marginBottom: 6},
-  input: {
-    borderWidth: 1.5, borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 12, fontSize: 15,
-  },
+  input: {borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15},
   dropdown: {borderWidth: 1.5, borderRadius: 12, marginTop: 4},
-  dropdownItem: {
-    paddingHorizontal: 14, paddingVertical: 14,
-    borderBottomWidth: 1,
-  },
+  dropdownItem: {paddingHorizontal: 14, paddingVertical: 14, borderBottomWidth: 1},
   dropdownMain: {fontSize: 15, fontWeight: '500'},
   dropdownSub: {fontSize: 12, marginTop: 2},
   selector: {
-    borderWidth: 1.5, borderRadius: 12,
-    paddingHorizontal: 14, paddingVertical: 14,
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    minHeight: 52,
+    borderWidth: 1.5, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 14,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', minHeight: 52,
   },
   selectorText: {fontSize: 15, flex: 1},
   selectorPH: {fontSize: 15, flex: 1},
   chevron: {fontSize: 14, marginLeft: 8},
-  othersBox: {
-    borderRadius: 12, padding: 14, marginTop: 10, borderWidth: 1.5,
-  },
+  othersBox: {borderRadius: 12, padding: 14, marginTop: 10, borderWidth: 1.5},
   othersHeader: {flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8},
   othersLabel: {fontWeight: '700', fontSize: 14},
   clearText: {fontSize: 13, fontWeight: '500'},
@@ -1233,26 +860,14 @@ const styles = StyleSheet.create({
   dateLabel: {fontSize: 12, marginBottom: 4},
   clearDates: {marginTop: 6, alignSelf: 'flex-end'},
   clearDatesText: {fontSize: 12, fontWeight: '500'},
-  filePicker: {
-    borderWidth: 2, borderStyle: 'dashed', borderRadius: 12,
-    padding: 18, alignItems: 'center', marginTop: 16,
-  },
+  filePicker: {borderWidth: 2, borderStyle: 'dashed', borderRadius: 12, padding: 18, alignItems: 'center', marginTop: 16},
   filePickerText: {fontSize: 14, fontWeight: '600', textAlign: 'center'},
-  submitBtn: {
-    borderRadius: 12, paddingVertical: 18,
-    alignItems: 'center', marginTop: 24, minHeight: 56,
-  },
+  submitBtn: {borderRadius: 12, paddingVertical: 18, alignItems: 'center', marginTop: 24, minHeight: 56},
   submitDisabled: {opacity: 0.4},
   submitText: {color: '#fff', fontWeight: '700', fontSize: 16},
-  successContainer: {
-    flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30,
-  },
-  successEmoji: {fontSize: 72, marginBottom: 20},
+  successContainer: {flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30},
   successTitle: {fontSize: 24, fontWeight: '800', textAlign: 'center'},
   successSub: {fontSize: 15, textAlign: 'center', marginTop: 10, lineHeight: 22},
-  successBtn: {
-    borderRadius: 12, paddingVertical: 16,
-    paddingHorizontal: 28, marginTop: 28, minHeight: 56,
-  },
+  successBtn: {borderRadius: 12, paddingVertical: 16, paddingHorizontal: 28, marginTop: 28, minHeight: 56},
   successBtnText: {color: '#fff', fontWeight: '700', fontSize: 16},
 });

@@ -5,14 +5,13 @@ import {
   View,
   StyleSheet,
   TouchableOpacity,
-  Text,
 } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
   runOnJS,
-  runOnUI,
+  interpolate,
 } from 'react-native-reanimated';
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -25,7 +24,6 @@ import UploadCertificateScreen from '../screens/UploadCertificateScreen';
 import {useFcmToken} from '../utils/useFcmToken';
 import {tabEmitter} from '../utils/tabEvents';
 
-const {width: SCREEN_WIDTH} = Dimensions.get('window');
 const TAB_COUNT = 3;
 const TABS = [
   {name: 'Dashboard', icon: 'view-dashboard-outline', component: DashboardScreen},
@@ -33,7 +31,6 @@ const TABS = [
   {name: 'Upload', icon: 'upload-outline', component: UploadCertificateScreen},
 ];
 
-// Slower, no bounce spring
 const SPRING_CONFIG = {
   damping: 38,
   stiffness: 280,
@@ -46,64 +43,74 @@ export default function StudentTabNavigator() {
   const insets = useSafeAreaInsets();
   useFcmToken();
 
-  const [activeTab, setActiveTab] = useState(0);
+  const [containerWidth, setContainerWidth] = useState(
+    Math.ceil(Dimensions.get('window').width),
+  );
+
   const translateX = useSharedValue(0);
   const currentIndexSV = useSharedValue(0);
+  const progress = useSharedValue(0);
 
   const TAB_BAR_HEIGHT = Platform.OS === 'android' ? 65 + insets.bottom : 80;
 
-  const syncActiveTab = useCallback((index: number) => {
-    setActiveTab(index);
+  const syncProgress = useCallback((val: number) => {
+    // no-op — only needed to satisfy runOnJS typing if needed
   }, []);
 
-  const snapTo = useCallback(
-    (index: number) => {
+  const snapToIndex = useCallback(
+    (index: number, width: number) => {
       'worklet';
       const clamped = Math.max(0, Math.min(TAB_COUNT - 1, index));
       currentIndexSV.value = clamped;
-      translateX.value = withSpring(-clamped * SCREEN_WIDTH, SPRING_CONFIG);
-      runOnJS(syncActiveTab)(clamped);
+      progress.value = withSpring(clamped, {
+        damping: 38,
+        stiffness: 280,
+        mass: 0.8,
+        overshootClamping: true,
+      });
+      translateX.value = withSpring(-clamped * width, SPRING_CONFIG);
     },
-    [translateX, currentIndexSV, syncActiveTab],
+    [translateX, currentIndexSV, progress],
   );
 
-  // Listen for tab switch events from screens (e.g. "View All" button)
+  const goToTab = useCallback(
+    (index: number) => {
+      const width = Math.ceil(Dimensions.get('window').width);
+      snapToIndex(index, width);
+    },
+    [snapToIndex],
+  );
+
   useEffect(() => {
-    const handler = (index: number) => {
-      runOnUI(snapTo)(index);
-    };
+    const handler = (index: number) => goToTab(index);
     tabEmitter.on('switchTab', handler);
-    return () => {
-      tabEmitter.off('switchTab', handler);
-    };
-  }, [snapTo]);
+    return () => tabEmitter.off('switchTab', handler);
+  }, [goToTab]);
 
   const pan = Gesture.Pan()
     .activeOffsetX([-10, 10])
     .failOffsetY([-15, 15])
     .onUpdate(event => {
       'worklet';
-      const base = -currentIndexSV.value * SCREEN_WIDTH;
+      const base = -currentIndexSV.value * containerWidth;
       let drag = event.translationX;
       const projected = base + drag;
-      const minX = -(TAB_COUNT - 1) * SCREEN_WIDTH;
-      if (projected > 0) {
-        drag = drag * 0.15;
-      } else if (projected < minX) {
-        drag = drag * 0.15;
-      }
+      const minX = -(TAB_COUNT - 1) * containerWidth;
+      if (projected > 0) drag = drag * 0.15;
+      else if (projected < minX) drag = drag * 0.15;
       translateX.value = base + drag;
+      progress.value = -translateX.value / containerWidth;
     })
     .onEnd(event => {
       'worklet';
       const {translationX: tx, velocityX: vx} = event;
       let targetIndex = currentIndexSV.value;
-      if (vx < -500 || tx < -SCREEN_WIDTH * 0.3) {
+      if (vx < -500 || tx < -containerWidth * 0.3) {
         targetIndex = currentIndexSV.value + 1;
-      } else if (vx > 500 || tx > SCREEN_WIDTH * 0.3) {
+      } else if (vx > 500 || tx > containerWidth * 0.3) {
         targetIndex = currentIndexSV.value - 1;
       }
-      snapTo(targetIndex);
+      snapToIndex(targetIndex, containerWidth);
     });
 
   const rowAnimStyle = useAnimatedStyle(() => ({
@@ -111,24 +118,24 @@ export default function StudentTabNavigator() {
   }));
 
   const indicatorAnimStyle = useAnimatedStyle(() => ({
-    transform: [
-      {
-        translateX: withSpring(
-          (currentIndexSV.value * SCREEN_WIDTH) / TAB_COUNT,
-          {damping: 30, stiffness: 200, overshootClamping: true},
-        ),
-      },
-    ],
+    transform: [{translateX: (progress.value * containerWidth) / TAB_COUNT}],
   }));
 
   return (
-    <View style={styles.container}>
+    <View
+      style={styles.container}
+      onLayout={e => {
+        const w = Math.ceil(e.nativeEvent.layout.width);
+        setContainerWidth(w);
+        translateX.value = -currentIndexSV.value * w;
+      }}>
+
       <GestureDetector gesture={pan}>
         <Animated.View
           style={[
             styles.row,
             {
-              width: SCREEN_WIDTH * TAB_COUNT,
+              width: containerWidth * TAB_COUNT,
               height: '100%',
               paddingBottom: TAB_BAR_HEIGHT,
             },
@@ -137,7 +144,7 @@ export default function StudentTabNavigator() {
           {TABS.map(tab => {
             const Comp = tab.component;
             return (
-              <View key={tab.name} style={{width: SCREEN_WIDTH, flex: 1}}>
+              <View key={tab.name} style={{width: containerWidth, flex: 1}}>
                 <Comp />
               </View>
             );
@@ -145,6 +152,7 @@ export default function StudentTabNavigator() {
         </Animated.View>
       </GestureDetector>
 
+      {/* Tab bar */}
       <View
         style={[
           styles.tabBar,
@@ -155,44 +163,95 @@ export default function StudentTabNavigator() {
             paddingBottom: insets.bottom,
           },
         ]}>
+
+        {/* Sliding top indicator */}
         <View style={styles.indicatorTrack}>
           <Animated.View
             style={[
               styles.indicator,
-              {
-                width: SCREEN_WIDTH / TAB_COUNT,
-                backgroundColor: colors.primary,
-              },
+              {width: containerWidth / TAB_COUNT, backgroundColor: colors.primary},
               indicatorAnimStyle,
             ]}
           />
         </View>
 
-        {TABS.map((tab, i) => {
-          const isActive = activeTab === i;
-          return (
-            <TouchableOpacity
-              key={tab.name}
-              style={styles.tabItem}
-              onPress={() => runOnUI(snapTo)(i)}
-              activeOpacity={0.7}>
-              <MaterialCommunityIcons
-                name={tab.icon}
-                size={24}
-                color={isActive ? colors.primary : colors.textMuted}
-              />
-              <Text
-                style={[
-                  styles.tabLabel,
-                  {color: isActive ? colors.primary : colors.textMuted},
-                ]}>
-                {tab.name}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
+        {/* Tab items */}
+        {TABS.map((tab, i) => (
+          <AnimatedTabItem
+            key={tab.name}
+            tab={tab}
+            index={i}
+            progress={progress}
+            colors={colors}
+            onPress={() => goToTab(i)}
+          />
+        ))}
       </View>
     </View>
+  );
+}
+
+function AnimatedTabItem({
+  tab,
+  index,
+  progress,
+  colors,
+  onPress,
+}: {
+  tab: (typeof TABS)[0];
+  index: number;
+  progress: Animated.SharedValue<number>;
+  colors: any;
+  onPress: () => void;
+}) {
+  const activeIconStyle = useAnimatedStyle(() => {
+    const distance = Math.abs(progress.value - index);
+    return {opacity: interpolate(distance, [0, 0.5], [1, 0], 'clamp')};
+  });
+
+  const inactiveIconStyle = useAnimatedStyle(() => {
+    const distance = Math.abs(progress.value - index);
+    return {opacity: interpolate(distance, [0, 0.5], [0, 1], 'clamp')};
+  });
+
+  const activeLabelStyle = useAnimatedStyle(() => {
+    const distance = Math.abs(progress.value - index);
+    return {opacity: interpolate(distance, [0, 0.5], [1, 0], 'clamp')};
+  });
+
+  const inactiveLabelStyle = useAnimatedStyle(() => {
+    const distance = Math.abs(progress.value - index);
+    return {opacity: interpolate(distance, [0, 0.5], [0, 1], 'clamp')};
+  });
+
+  return (
+    <TouchableOpacity
+      style={styles.tabItem}
+      onPress={onPress}
+      activeOpacity={0.7}>
+
+      {/* Icon stack — active and inactive cross-fade */}
+      <View style={styles.iconWrapper}>
+        <Animated.View style={[StyleSheet.absoluteFill, styles.iconCenter, activeIconStyle]}>
+          <MaterialCommunityIcons name={tab.icon} size={24} color={colors.primary} />
+        </Animated.View>
+        <Animated.View style={[StyleSheet.absoluteFill, styles.iconCenter, inactiveIconStyle]}>
+          <MaterialCommunityIcons name={tab.icon} size={24} color={colors.textMuted} />
+        </Animated.View>
+      </View>
+
+      {/* Label stack — active and inactive cross-fade */}
+      <View style={styles.labelWrapper}>
+        <Animated.Text
+          style={[styles.tabLabel, {color: colors.primary, position: 'absolute'}, activeLabelStyle]}>
+          {tab.name}
+        </Animated.Text>
+        <Animated.Text
+          style={[styles.tabLabel, {color: colors.textMuted, position: 'absolute'}, inactiveLabelStyle]}>
+          {tab.name}
+        </Animated.Text>
+      </View>
+    </TouchableOpacity>
   );
 }
 
@@ -232,11 +291,29 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 6,
-    gap: 2,
+    paddingTop: 8,
+    paddingBottom: 4,
+    gap: 3,
+  },
+  // Fixed-size box that holds the icon — both layers sit inside this
+  iconWrapper: {
+    width: 28,
+    height: 28,
+  },
+  iconCenter: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Fixed-size box that holds the label — both layers sit inside this
+  labelWrapper: {
+    height: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 60,
   },
   tabLabel: {
     fontSize: 11,
     fontWeight: '600',
+    textAlign: 'center',
   },
 });

@@ -125,7 +125,7 @@ export default function DashboardScreen() {
           <MaterialCommunityIcons
             name="trophy-outline"
             size={48}
-            color={colors.primary}
+            color={colors.trophyIcon}
           />
         </View>
 

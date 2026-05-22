@@ -138,15 +138,24 @@ export default function StudentTabNavigator() {
               width: containerWidth * TAB_COUNT,
               height: '100%',
               paddingBottom: TAB_BAR_HEIGHT,
+              backgroundColor: colors.bg,
             },
             rowAnimStyle,
           ]}>
           {TABS.map(tab => {
             const Comp = tab.component;
             return (
-              <View key={tab.name} style={{width: containerWidth, overflow: 'hidden', height: '100%'}}>
-                <Comp />
-              </View>
+              // In the TABS.map render, change the wrapper View:
+<View
+  key={tab.name}
+  style={{
+    width: containerWidth,
+    overflow: 'hidden',
+    height: '100%',
+    backgroundColor: colors.bg,  // ← ADD THIS
+  }}>
+  <Comp />
+</View>
             );
           })}
         </Animated.View>

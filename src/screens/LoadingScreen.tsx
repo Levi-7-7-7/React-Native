@@ -13,11 +13,11 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 // Messages that cycle through while the server is cold-starting.
 // Starts neutral, escalates gently so the user understands what's happening.
 const MESSAGES: {text: string; sub: string}[] = [
-  {text: 'Starting up…',           sub: 'Connecting to the server'},
-  {text: 'Almost there…',          sub: 'The server is waking up, hang tight'},
-  {text: 'Still loading…',         sub: 'Cold starts can take up to 30 seconds'},
+  {text: 'Starting up…',             sub: 'Connecting to the server'},
+  {text: 'Almost there…',            sub: 'The server is waking up, hang tight'},
+  {text: 'Still loading…',           sub: 'Cold starts can take up to 40 seconds'},
   {text: 'Just a few more seconds…', sub: 'The server was sleeping — it\'s booting now'},
-  {text: 'Thanks for waiting!',    sub: 'This only happens after a period of inactivity'},
+  {text: 'Thanks for waiting!',      sub: 'This only happens after a period of inactivity'},
 ];
 
 // How long each message stays before fading to the next (ms)
@@ -62,7 +62,7 @@ export default function LoadingScreen() {
           Animated.timing(pulseAnim, {toValue: 1,    duration: 900, useNativeDriver: true}),
         ]),
         Animated.sequence([
-          Animated.timing(pulseOpacity, {toValue: 0,   duration: 900, useNativeDriver: true}),
+          Animated.timing(pulseOpacity, {toValue: 0,    duration: 900, useNativeDriver: true}),
           Animated.timing(pulseOpacity, {toValue: 0.35, duration: 900, useNativeDriver: true}),
         ]),
       ]).start(() => pulse());
@@ -75,7 +75,7 @@ export default function LoadingScreen() {
     const timer = setInterval(() => {
       // Fade + slide out
       Animated.parallel([
-        Animated.timing(fadeAnim,  {toValue: 0, duration: FADE_DURATION, useNativeDriver: true}),
+        Animated.timing(fadeAnim,  {toValue: 0,  duration: FADE_DURATION, useNativeDriver: true}),
         Animated.timing(slideAnim, {toValue: -8, duration: FADE_DURATION, useNativeDriver: true}),
       ]).start(() => {
         setMsgIndex(prev => (prev + 1 < MESSAGES.length ? prev + 1 : prev));
@@ -134,7 +134,7 @@ export default function LoadingScreen() {
 
         {/* App name */}
         <Text style={[styles.appName, {color: primary}]}>Activity Points</Text>
-        <Text style={[styles.appTagline, {color: textSub}]}>MTI · CESA</Text>
+        <Text style={[styles.appTagline, {color: textSub}]}>Developed by LPT</Text>
 
         {/* Divider */}
         <View style={[styles.divider, {backgroundColor: dotColor}]} />
@@ -167,10 +167,6 @@ export default function LoadingScreen() {
           ))}
         </View>
       </Animated.View>
-
-      <Text style={[styles.hint, {color: textSub}]}>
-        Powered by Render · Free tier may have cold starts
-      </Text>
     </SafeAreaView>
   );
 }
@@ -254,11 +250,5 @@ const styles = StyleSheet.create({
   dot: {
     height: 7,
     borderRadius: 4,
-  },
-  hint: {
-    fontSize: 11,
-    marginTop: 24,
-    textAlign: 'center',
-    opacity: 0.6,
   },
 });

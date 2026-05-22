@@ -3,7 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert, Platform, Modal,
   FlatList, StatusBar, PermissionsAndroid,
-  Animated,
+  Animated,InteractionManager,
 } from 'react-native';
 import {ScrollView} from 'react-native-gesture-handler';
 import {SafeAreaView} from 'react-native-safe-area-context';
@@ -413,24 +413,18 @@ export default function UploadCertificateScreen() {
   };
 
   const pickFromGallery = async () => {
-    const ok = await requestMediaPermission();
-    if (!ok) return;
-    const result = await launchImageLibrary({mediaType: 'photo', quality: 0.7, selectionLimit: 1, presentationStyle: 'pageSheet'});
-    if (result.didCancel || !result.assets?.length) return;
-    setIsResizing(true);
-    try {
-      const {file: resized, isTemp} = await resizeImageIfNeeded(result.assets[0]);
-      validateAndSet(resized, isTemp);
-    } finally {
-      setIsResizing(false);
-    }
-  };
+  const ok = await requestMediaPermission();
+  if (!ok) return;
+  const result = await launchImageLibrary({
+    mediaType: 'photo',
+    quality: 0.7,
+    selectionLimit: 1,
+    presentationStyle: 'pageSheet',
+  });
+  if (result.didCancel || !result.assets?.length) return;
 
-  const pickFromCamera = async () => {
-    const ok = await requestCameraPermission();
-    if (!ok) return;
-    const result = await launchCamera({mediaType: 'photo', quality: 0.7, saveToPhotos: false, includeBase64: false, cameraType: 'back'});
-    if (result.didCancel || !result.assets?.length) return;
+  // Wait for picker close animation + JS interactions to settle
+  InteractionManager.runAfterInteractions(async () => {
     setIsResizing(true);
     try {
       const {file: resized, isTemp} = await resizeImageIfNeeded(result.assets[0]);
@@ -438,7 +432,31 @@ export default function UploadCertificateScreen() {
     } finally {
       setIsResizing(false);
     }
-  };
+  });
+};
+
+const pickFromCamera = async () => {
+  const ok = await requestCameraPermission();
+  if (!ok) return;
+  const result = await launchCamera({
+    mediaType: 'photo',
+    quality: 0.7,
+    saveToPhotos: false,
+    includeBase64: false,
+    cameraType: 'back',
+  });
+  if (result.didCancel || !result.assets?.length) return;
+
+  InteractionManager.runAfterInteractions(async () => {
+    setIsResizing(true);
+    try {
+      const {file: resized, isTemp} = await resizeImageIfNeeded(result.assets[0]);
+      validateAndSet(resized, isTemp);
+    } finally {
+      setIsResizing(false);
+    }
+  });
+};
 
   const pickPdf = async () => {
     try {

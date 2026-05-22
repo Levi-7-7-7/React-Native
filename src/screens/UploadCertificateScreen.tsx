@@ -164,6 +164,7 @@ export default function UploadCertificateScreen() {
   const [uploadedFile, setUploadedFile] = useState<any>(null);
   const [eligiblePoints, setEligiblePoints] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [dateFrom, setDateFrom] = useState<Date | null>(null);
   const [dateTo, setDateTo] = useState<Date | null>(null);
@@ -200,6 +201,7 @@ export default function UploadCertificateScreen() {
     setIsOthers(false);
     setOthersDescription('');
     setSubmitted(false);
+    setIsResizing(false);
     fadeAnim.setValue(0);
     scaleAnim.setValue(0.8);
   };
@@ -370,7 +372,9 @@ export default function UploadCertificateScreen() {
   const resizeImageIfNeeded = async (asset: any): Promise<{file: any; isTemp: boolean}> => {
     const sizeInMB = (asset.fileSize || 0) / 1024 / 1024;
     if (sizeInMB <= MAX_FILE_SIZE_MB) return {file: asset, isTemp: false};
-    Alert.alert('Optimizing Image', 'Large image detected. Compressing for faster upload...');
+    // No Alert here — alerts during async ops can trigger Android activity
+    // lifecycle events (pause/resume) that confuse the navigation stack.
+    // We show an overlay via isResizing state instead.
     try {
       const resized = await ImageResizer.createResizedImage(
         asset.uri, 900, 1200, 'JPEG', 60, 0, undefined, false,
@@ -381,6 +385,8 @@ export default function UploadCertificateScreen() {
         isTemp: true,
       };
     } catch {
+      // Resize failed — return the original and let validateAndSet reject it
+      // with a user-facing "File too large" message.
       return {file: asset, isTemp: false};
     }
   };
@@ -411,8 +417,13 @@ export default function UploadCertificateScreen() {
     if (!ok) return;
     const result = await launchImageLibrary({mediaType: 'photo', quality: 0.7, selectionLimit: 1, presentationStyle: 'pageSheet'});
     if (result.didCancel || !result.assets?.length) return;
-    const {file: resized, isTemp} = await resizeImageIfNeeded(result.assets[0]);
-    validateAndSet(resized, isTemp);
+    setIsResizing(true);
+    try {
+      const {file: resized, isTemp} = await resizeImageIfNeeded(result.assets[0]);
+      validateAndSet(resized, isTemp);
+    } finally {
+      setIsResizing(false);
+    }
   };
 
   const pickFromCamera = async () => {
@@ -420,8 +431,13 @@ export default function UploadCertificateScreen() {
     if (!ok) return;
     const result = await launchCamera({mediaType: 'photo', quality: 0.7, saveToPhotos: false, includeBase64: false, cameraType: 'back'});
     if (result.didCancel || !result.assets?.length) return;
-    const {file: resized, isTemp} = await resizeImageIfNeeded(result.assets[0]);
-    validateAndSet(resized, isTemp);
+    setIsResizing(true);
+    try {
+      const {file: resized, isTemp} = await resizeImageIfNeeded(result.assets[0]);
+      validateAndSet(resized, isTemp);
+    } finally {
+      setIsResizing(false);
+    }
   };
 
   const pickPdf = async () => {
@@ -801,6 +817,17 @@ export default function UploadCertificateScreen() {
           )}
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Resizing overlay — shown instead of an Alert so no Android lifecycle side-effects */}
+      <Modal visible={isResizing} transparent animationType="fade">
+        <View style={styles.resizingOverlay}>
+          <View style={[styles.resizingCard, {backgroundColor: colors.card}]}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={[styles.resizingText, {color: colors.text}]}>Optimising image…</Text>
+            <Text style={[styles.resizingSubText, {color: colors.textMuted}]}>Compressing for faster upload</Text>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -870,4 +897,24 @@ const styles = StyleSheet.create({
   successSub: {fontSize: 15, textAlign: 'center', marginTop: 10, lineHeight: 22},
   successBtn: {borderRadius: 12, paddingVertical: 16, paddingHorizontal: 28, marginTop: 28, minHeight: 56},
   successBtnText: {color: '#fff', fontWeight: '700', fontSize: 16},
+  resizingOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resizingCard: {
+    borderRadius: 16,
+    padding: 28,
+    alignItems: 'center',
+    gap: 12,
+    minWidth: 220,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  resizingText: {fontSize: 16, fontWeight: '700', marginTop: 4},
+  resizingSubText: {fontSize: 13, fontWeight: '400', textAlign: 'center'},
 });

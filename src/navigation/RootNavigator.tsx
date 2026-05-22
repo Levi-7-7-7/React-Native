@@ -1,5 +1,5 @@
 import React from 'react';
-import {View, ActivityIndicator, StyleSheet} from 'react-native';
+import {StyleSheet} from 'react-native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {useAuth} from '../context/AuthContext';
 import LoginScreen from '../screens/LoginScreen';
@@ -7,6 +7,7 @@ import VerifyOtpScreen from '../screens/VerifyOtpScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import ResetPasswordScreen from '../screens/ResetPasswordScreen';
 import StudentTabNavigator from './StudentTabNavigator';
+import LoadingScreen from '../screens/LoadingScreen';
 // import CertificateViewerScreen from '../screens/CertificateViewerScreen';
 
 const Stack = createNativeStackNavigator();
@@ -15,11 +16,7 @@ export default function RootNavigator() {
   const {role, loading} = useAuth();
 
   if (loading) {
-    return (
-      <View style={styles.loading}>
-        <ActivityIndicator size="large" color="#1e3a8a" />
-      </View>
-    );
+    return <LoadingScreen />;
   }
 
   return (
@@ -47,11 +44,5 @@ export default function RootNavigator() {
   );
 }
 
-const styles = StyleSheet.create({
-  loading: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f0f4ff',
-  },
-});
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const styles = StyleSheet.create({});

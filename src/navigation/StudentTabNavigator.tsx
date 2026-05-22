@@ -44,7 +44,7 @@ export default function StudentTabNavigator() {
   useFcmToken();
 
   const [containerWidth, setContainerWidth] = useState(
-    Math.ceil(Dimensions.get('window').width),
+    Dimensions.get('window').width,
   );
 
   const translateX = useSharedValue(0);
@@ -75,7 +75,7 @@ export default function StudentTabNavigator() {
 
   const goToTab = useCallback(
     (index: number) => {
-      const width = Math.ceil(Dimensions.get('window').width);
+      const width = Dimensions.get('window').width;
       snapToIndex(index, width);
     },
     [snapToIndex],
@@ -125,7 +125,7 @@ export default function StudentTabNavigator() {
     <View
       style={styles.container}
       onLayout={e => {
-        const w = Math.ceil(e.nativeEvent.layout.width);
+        const w = e.nativeEvent.layout.width;
         setContainerWidth(w);
         translateX.value = -currentIndexSV.value * w;
       }}>
@@ -144,7 +144,7 @@ export default function StudentTabNavigator() {
           {TABS.map(tab => {
             const Comp = tab.component;
             return (
-              <View key={tab.name} style={{width: containerWidth, flex: 1}}>
+              <View key={tab.name} style={{width: containerWidth, overflow: 'hidden', height: '100%'}}>
                 <Comp />
               </View>
             );
@@ -256,7 +256,7 @@ function AnimatedTabItem({
 }
 
 const styles = StyleSheet.create({
-  container: {flex: 1},
+  container: {flex: 1, overflow: 'hidden'},
   row: {
     position: 'absolute',
     top: 0,

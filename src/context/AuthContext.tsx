@@ -1,12 +1,12 @@
 /**
- * AuthContext — updated to restore tutor session on app reopen.
+ * AuthContext — fixed to restore tutor session from AsyncStorage
+ * instead of pinging /tutors/me (which returns 404).
  *
- * Drop this file in place of src/context/AuthContext.tsx
+ * Drop this in place of src/context/AuthContext.tsx
  */
 import React, {createContext, useState, useEffect, useContext} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axiosInstance from '../api/axiosInstance';
-import tutorAxios from '../api/tutorAxios';
 
 interface AuthContextType {
   user: any;
@@ -42,7 +42,7 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({
               if (err?.response?.status === 401) {
                 await clearAll();
               } else {
-                // Network error — keep session open
+                // Network error — keep student session open
                 setRole('student');
               }
             }
@@ -50,19 +50,13 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({
         } else if (storedRole === 'tutor') {
           const token = await AsyncStorage.getItem('tutorToken');
           if (token) {
-            try {
-              // Lightweight ping to verify token — adjust endpoint if needed
-              const res = await tutorAxios.get('/tutors/me');
-              setUser(res.data);
-              setRole('tutor');
-            } catch (err: any) {
-              if (err?.response?.status === 401) {
-                await clearAll();
-              } else {
-                // Network error — keep tutor session open
-                setRole('tutor');
-              }
-            }
+            // Restore tutor session directly from AsyncStorage.
+            // No network ping needed — if the token is expired the
+            // tutorAxios 401 interceptor will clear storage on the
+            // next real API call and log the user out automatically.
+            const tutorName = await AsyncStorage.getItem('tutorName');
+            setUser({name: tutorName || 'Tutor'});
+            setRole('tutor');
           }
         }
       } catch {

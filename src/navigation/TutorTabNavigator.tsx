@@ -33,6 +33,7 @@ import TutorStudentsScreen from '../screens/TutorStudentsScreen';
 import TutorUploadCSVScreen from '../screens/TutorUploadCSVScreen';
 import TutorPendingScreen from '../screens/TutorPendingScreen';
 import TutorApprovedScreen from '../screens/TutorApprovedScreen';
+import {useTutorFcmToken} from '../utils/useTutorFcmToken';
 
 const TAB_COUNT = 4;
 const TABS = [
@@ -57,6 +58,19 @@ export default function TutorTabNavigator() {
   const [containerWidth, setContainerWidth] = useState(
     Dimensions.get('window').width,
   );
+
+  // Badge count for the Pending tab — incremented when a new certificate
+  // notification arrives; cleared when the tutor opens the Pending tab.
+  const [pendingBadge, setPendingBadge] = useState(0);
+
+  // Register the tutor's FCM token and listen for foreground notifications.
+  // The callback runs whenever a "new_certificate" message arrives while the
+  // app is open, bumping the badge so the tutor notices without leaving the
+  // current tab.
+  const handleNewCertificate = useCallback(() => {
+    setPendingBadge(prev => prev + 1);
+  }, []);
+  useTutorFcmToken(handleNewCertificate);
 
   const translateX = useSharedValue(0);
   const currentIndexSV = useSharedValue(0);
@@ -247,7 +261,13 @@ export default function TutorTabNavigator() {
               index={i}
               progress={progress}
               colors={colors}
-              onPress={() => goToTab(i)}
+              badge={tab.name === 'Pending' ? pendingBadge : 0}
+              onPress={() => {
+                if (tab.name === 'Pending') {
+                  setPendingBadge(0);
+                }
+                goToTab(i);
+              }}
             />
           ))}
         </View>
@@ -261,12 +281,14 @@ function AnimatedTabItem({
   index,
   progress,
   colors,
+  badge,
   onPress,
 }: {
   tab: (typeof TABS)[0];
   index: number;
   progress: Animated.SharedValue<number>;
   colors: any;
+  badge: number;
   onPress: () => void;
 }) {
   const activeStyle = useAnimatedStyle(() => {
@@ -292,6 +314,11 @@ function AnimatedTabItem({
           style={[StyleSheet.absoluteFill, styles.iconCenter, inactiveStyle]}>
           <Icon name={tab.icon} size={22} color={colors.textMuted} />
         </Animated.View>
+        {badge > 0 && (
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>{badge > 9 ? '9+' : badge}</Text>
+          </View>
+        )}
       </View>
       <View style={styles.labelWrapper}>
         <Animated.Text
@@ -396,6 +423,19 @@ const styles = StyleSheet.create({
   },
   iconWrapper: {width: 26, height: 26},
   iconCenter: {alignItems: 'center', justifyContent: 'center'},
+  badge: {
+    position: 'absolute',
+    top: -4,
+    right: -6,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#ef4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  badgeText: {color: '#fff', fontSize: 9, fontWeight: '800'},
   labelWrapper: {
     height: 13,
     alignItems: 'center',

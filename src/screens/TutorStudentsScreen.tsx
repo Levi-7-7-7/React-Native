@@ -17,8 +17,8 @@ interface Student {
   _id: string;
   name: string;
   registerNumber: string;
-  batch: string;
-  branch: string;
+  batch: string | {_id: string; name: string};
+  branch: string | {_id: string; name: string};
   totalPoints: number;
 }
 
@@ -57,47 +57,66 @@ export default function TutorStudentsScreen() {
       : true,
   );
 
-  const renderItem = ({item}: {item: Student}) => (
-    <View style={[styles.card, {backgroundColor: colors.card, borderColor: colors.border}]}>
-      <View style={styles.cardTop}>
-        <View style={styles.avatarSmall}>
-          <Text style={styles.avatarSmallText}>
-            {item.name
-              ?.split(' ')
-              .map(n => n[0])
-              .join('')
-              .toUpperCase()
-              .slice(0, 2) || '?'}
-          </Text>
+  const renderItem = ({item}: {item: Student}) => {
+    // batch and branch come back as populated objects {_id, name} from the backend
+    const batchName =
+      typeof item.batch === 'object' ? item.batch?.name : item.batch;
+    const branchName =
+      typeof item.branch === 'object' ? item.branch?.name : item.branch;
+
+    return (
+      <View
+        style={[
+          styles.card,
+          {backgroundColor: colors.card, borderColor: colors.border},
+        ]}>
+        <View style={styles.cardTop}>
+          <View style={styles.avatarSmall}>
+            <Text style={styles.avatarSmallText}>
+              {item.name
+                ?.split(' ')
+                .map(n => n[0])
+                .join('')
+                .toUpperCase()
+                .slice(0, 2) || '?'}
+            </Text>
+          </View>
+          <View style={styles.cardInfo}>
+            <Text style={[styles.studentName, {color: colors.text}]}>
+              {item.name}
+            </Text>
+            <Text style={[styles.regNo, {color: colors.textMuted}]}>
+              {item.registerNumber}
+            </Text>
+          </View>
+          <View
+            style={[
+              styles.pointsBadge,
+              {backgroundColor: colors.primaryMuted},
+            ]}>
+            <Text style={[styles.pointsText, {color: colors.primary}]}>
+              {item.totalPoints ?? 0} pts
+            </Text>
+          </View>
         </View>
-        <View style={styles.cardInfo}>
-          <Text style={[styles.studentName, {color: colors.text}]}>{item.name}</Text>
-          <Text style={[styles.regNo, {color: colors.textMuted}]}>
-            {item.registerNumber}
-          </Text>
-        </View>
-        <View style={[styles.pointsBadge, {backgroundColor: colors.primaryMuted}]}>
-          <Text style={[styles.pointsText, {color: colors.primary}]}>
-            {item.totalPoints ?? 0} pts
-          </Text>
+        <View
+          style={[styles.cardFooter, {borderTopColor: colors.borderLight}]}>
+          <View style={styles.metaItem}>
+            <Icon name="calendar-outline" size={13} color={colors.textMuted} />
+            <Text style={[styles.metaText, {color: colors.textMuted}]}>
+              {batchName || 'N/A'}
+            </Text>
+          </View>
+          <View style={styles.metaItem}>
+            <Icon name="school-outline" size={13} color={colors.textMuted} />
+            <Text style={[styles.metaText, {color: colors.textMuted}]}>
+              {branchName || 'N/A'}
+            </Text>
+          </View>
         </View>
       </View>
-      <View style={[styles.cardFooter, {borderTopColor: colors.borderLight}]}>
-        <View style={styles.metaItem}>
-          <Icon name="calendar-outline" size={13} color={colors.textMuted} />
-          <Text style={[styles.metaText, {color: colors.textMuted}]}>
-            {item.batch || 'N/A'}
-          </Text>
-        </View>
-        <View style={styles.metaItem}>
-          <Icon name="school-outline" size={13} color={colors.textMuted} />
-          <Text style={[styles.metaText, {color: colors.textMuted}]}>
-            {item.branch || 'N/A'}
-          </Text>
-        </View>
-      </View>
-    </View>
-  );
+    );
+  };
 
   if (loading) {
     return (
@@ -113,8 +132,17 @@ export default function TutorStudentsScreen() {
   return (
     <View style={[styles.container, {backgroundColor: colors.bg}]}>
       {/* Search */}
-      <View style={[styles.searchWrapper, {backgroundColor: colors.card, borderColor: colors.border}]}>
-        <Icon name="magnify" size={20} color={colors.textMuted} style={styles.searchIcon} />
+      <View
+        style={[
+          styles.searchWrapper,
+          {backgroundColor: colors.card, borderColor: colors.border},
+        ]}>
+        <Icon
+          name="magnify"
+          size={20}
+          color={colors.textMuted}
+          style={styles.searchIcon}
+        />
         <TextInput
           style={[styles.searchInput, {color: colors.text}]}
           placeholder="Search by name or reg. number…"
@@ -149,7 +177,11 @@ export default function TutorStudentsScreen() {
         }
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Icon name="account-search-outline" size={48} color={colors.textMuted} />
+            <Icon
+              name="account-search-outline"
+              size={48}
+              color={colors.textMuted}
+            />
             <Text style={[styles.emptyText, {color: colors.textMuted}]}>
               {search ? 'No matching students found.' : 'No students yet.'}
             </Text>
@@ -176,7 +208,12 @@ const styles = StyleSheet.create({
   },
   searchIcon: {marginRight: 8},
   searchInput: {flex: 1, fontSize: 14, paddingVertical: 2},
-  countText: {fontSize: 12, fontWeight: '600', marginHorizontal: 16, marginBottom: 4},
+  countText: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginHorizontal: 16,
+    marginBottom: 4,
+  },
   list: {paddingHorizontal: 12, paddingBottom: 16},
   card: {
     borderRadius: 14,
@@ -213,6 +250,11 @@ const styles = StyleSheet.create({
   },
   metaItem: {flexDirection: 'row', alignItems: 'center', gap: 4},
   metaText: {fontSize: 12},
-  empty: {alignItems: 'center', justifyContent: 'center', paddingTop: 60, gap: 12},
+  empty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 60,
+    gap: 12,
+  },
   emptyText: {fontSize: 14},
 });

@@ -1,7 +1,21 @@
+/**
+ * LoginScreen — updated to add a "Tutor Login" link at the bottom.
+ *
+ * Only the footer section changes; the rest of the logic is identical
+ * to the original. Drop this file in place of src/screens/LoginScreen.tsx
+ */
 import React, {useState} from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, ActivityIndicator, Alert, KeyboardAvoidingView, Platform,
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axiosInstance from '../api/axiosInstance';
@@ -63,7 +77,9 @@ export default function LoginScreen({navigation}: any) {
     <KeyboardAvoidingView
       style={styles.flex}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled">
         {/* Header */}
         <View style={styles.header}>
           <MaterialCommunityIcons name="school-outline" size={48} color="#1e3a8a" />
@@ -86,7 +102,7 @@ export default function LoginScreen({navigation}: any) {
             editable={!loading}
           />
 
-          {/* Password (only if not first-time) */}
+          {/* Password */}
           {!isFirstTimeUser && (
             <>
               <Text style={styles.label}>Password</Text>
@@ -119,7 +135,8 @@ export default function LoginScreen({navigation}: any) {
             style={styles.checkRow}
             onPress={() => setIsFirstTimeUser(!isFirstTimeUser)}
             disabled={loading}>
-            <View style={[styles.checkbox, isFirstTimeUser && styles.checkboxChecked]}>
+            <View
+              style={[styles.checkbox, isFirstTimeUser && styles.checkboxChecked]}>
               {isFirstTimeUser && <Text style={styles.checkmark}>✓</Text>}
             </View>
             <Text style={styles.checkLabel}>First-time user (get OTP)</Text>
@@ -134,10 +151,13 @@ export default function LoginScreen({navigation}: any) {
             </TouchableOpacity>
           )}
 
-          {/* Submit button */}
+          {/* Submit */}
           {!isFirstTimeUser ? (
             <TouchableOpacity
-              style={[styles.btnPrimary, (!identifier || !password || loading) && styles.btnDisabled]}
+              style={[
+                styles.btnPrimary,
+                (!identifier || !password || loading) && styles.btnDisabled,
+              ]}
               onPress={handleLogin}
               disabled={!identifier || !password || loading}>
               {loading ? (
@@ -148,7 +168,10 @@ export default function LoginScreen({navigation}: any) {
             </TouchableOpacity>
           ) : (
             <TouchableOpacity
-              style={[styles.btnOutline, (!identifier || loading) && styles.btnDisabled]}
+              style={[
+                styles.btnOutline,
+                (!identifier || loading) && styles.btnDisabled,
+              ]}
               onPress={handleRequestOTP}
               disabled={!identifier || loading}>
               {loading ? (
@@ -160,7 +183,22 @@ export default function LoginScreen({navigation}: any) {
           )}
         </View>
 
-        <Text style={styles.footerText}>Need help? Contact your institution's IT support</Text>
+        {/* ── Tutor login link ── */}
+        <TouchableOpacity
+          style={styles.tutorLink}
+          onPress={() => navigation.navigate('TutorLogin')}
+          disabled={loading}>
+          <MaterialCommunityIcons
+            name="account-tie-outline"
+            size={16}
+            color="#2563eb"
+          />
+          <Text style={styles.tutorLinkText}>Login as Tutor</Text>
+        </TouchableOpacity>
+
+        <Text style={styles.footerText}>
+          Need help? Contact your institution's IT support
+        </Text>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -170,8 +208,12 @@ const styles = StyleSheet.create({
   flex: {flex: 1, backgroundColor: '#f0f4ff'},
   container: {flexGrow: 1, justifyContent: 'center', padding: 20},
   header: {alignItems: 'center', marginBottom: 28},
-  emoji: {fontSize: 52, marginBottom: 8},
-  title: {fontSize: 26, fontWeight: '800', color: '#1e3a8a', letterSpacing: 0.5},
+  title: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#1e3a8a',
+    letterSpacing: 0.5,
+  },
   subtitle: {fontSize: 14, color: '#6b7280', marginTop: 4},
   card: {
     backgroundColor: '#fff',
@@ -183,8 +225,20 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 6,
   },
-  cardTitle: {fontSize: 20, fontWeight: '700', color: '#1e3a8a', marginBottom: 20, textAlign: 'center'},
-  label: {fontSize: 13, fontWeight: '600', color: '#374151', marginBottom: 6, marginTop: 12},
+  cardTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1e3a8a',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 6,
+    marginTop: 12,
+  },
   input: {
     backgroundColor: '#f9fafb',
     borderWidth: 1.5,
@@ -198,17 +252,32 @@ const styles = StyleSheet.create({
   passwordRow: {position: 'relative'},
   passwordInput: {paddingRight: 48},
   eyeBtn: {position: 'absolute', right: 12, top: 12},
-  eyeText: {fontSize: 20},
-  checkRow: {flexDirection: 'row', alignItems: 'center', marginTop: 14, marginBottom: 4},
+  checkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 14,
+    marginBottom: 4,
+  },
   checkbox: {
-    width: 20, height: 20, borderRadius: 5,
-    borderWidth: 1.5, borderColor: '#9ca3af',
-    alignItems: 'center', justifyContent: 'center', marginRight: 8,
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: '#9ca3af',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
   },
   checkboxChecked: {backgroundColor: '#1e3a8a', borderColor: '#1e3a8a'},
   checkmark: {color: '#fff', fontSize: 13, fontWeight: '700'},
   checkLabel: {fontSize: 14, color: '#374151'},
-  forgotText: {color: '#2563eb', fontSize: 13, textAlign: 'right', marginTop: 6, marginBottom: 4},
+  forgotText: {
+    color: '#2563eb',
+    fontSize: 13,
+    textAlign: 'right',
+    marginTop: 6,
+    marginBottom: 4,
+  },
   btnPrimary: {
     backgroundColor: '#1e3a8a',
     borderRadius: 12,
@@ -227,5 +296,24 @@ const styles = StyleSheet.create({
   btnDisabled: {opacity: 0.5},
   btnText: {color: '#fff', fontWeight: '700', fontSize: 16},
   btnOutlineText: {color: '#1e3a8a', fontWeight: '700', fontSize: 16},
-  footerText: {textAlign: 'center', color: '#9ca3af', fontSize: 12, marginTop: 24},
+  // ── tutor link ──
+  tutorLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 20,
+    paddingVertical: 10,
+    borderWidth: 1.5,
+    borderColor: '#bfdbfe',
+    borderRadius: 12,
+    backgroundColor: '#eff6ff',
+  },
+  tutorLinkText: {color: '#2563eb', fontSize: 14, fontWeight: '600'},
+  footerText: {
+    textAlign: 'center',
+    color: '#9ca3af',
+    fontSize: 12,
+    marginTop: 20,
+  },
 });

@@ -1,0 +1,406 @@
+/**
+ * TutorTabNavigator
+ *
+ * Mirrors the web TutorDashboard layout:
+ *   - Header with avatar, greeting, logout
+ *   - Swipeable content area (same gesture pattern as StudentTabNavigator)
+ *   - Bottom tab bar: Students | Upload CSV | Pending | Approved
+ */
+import React, {useCallback, useState, useEffect} from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Platform,
+  Dimensions,
+  Alert,
+} from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  interpolate,
+} from 'react-native-reanimated';
+import {Gesture, GestureDetector} from 'react-native-gesture-handler';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+
+import {useTheme} from '../theme';
+import {useAuth} from '../context/AuthContext';
+import TutorStudentsScreen from '../screens/TutorStudentsScreen';
+import TutorUploadCSVScreen from '../screens/TutorUploadCSVScreen';
+import TutorPendingScreen from '../screens/TutorPendingScreen';
+import TutorApprovedScreen from '../screens/TutorApprovedScreen';
+
+const TAB_COUNT = 4;
+const TABS = [
+  {name: 'Students', icon: 'account-group-outline', component: TutorStudentsScreen},
+  {name: 'Upload CSV', icon: 'file-upload-outline', component: TutorUploadCSVScreen},
+  {name: 'Pending', icon: 'clipboard-list-outline', component: TutorPendingScreen},
+  {name: 'Approved', icon: 'check-decagram-outline', component: TutorApprovedScreen},
+];
+
+const SPRING_CONFIG = {
+  damping: 38,
+  stiffness: 280,
+  mass: 0.8,
+  overshootClamping: true,
+};
+
+export default function TutorTabNavigator() {
+  const {colors} = useTheme();
+  const {logout} = useAuth();
+  const insets = useSafeAreaInsets();
+  const [tutorName, setTutorName] = useState('Tutor');
+  const [containerWidth, setContainerWidth] = useState(
+    Dimensions.get('window').width,
+  );
+
+  const translateX = useSharedValue(0);
+  const currentIndexSV = useSharedValue(0);
+  const progress = useSharedValue(0);
+
+  const TAB_BAR_HEIGHT = Platform.OS === 'android' ? 65 + insets.bottom : 80;
+
+  useEffect(() => {
+    AsyncStorage.getItem('tutorName').then(n => {
+      if (n) setTutorName(n);
+    });
+  }, []);
+
+  const avatarInitials = tutorName
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+
+  const handleLogout = () => {
+    Alert.alert('Logout', 'Are you sure you want to logout?', [
+      {text: 'Cancel', style: 'cancel'},
+      {
+        text: 'Logout',
+        style: 'destructive',
+        onPress: () => logout(),
+      },
+    ]);
+  };
+
+  const snapToIndex = useCallback(
+    (index: number, width: number) => {
+      'worklet';
+      const clamped = Math.max(0, Math.min(TAB_COUNT - 1, index));
+      currentIndexSV.value = clamped;
+      progress.value = withSpring(clamped, SPRING_CONFIG);
+      translateX.value = withSpring(-clamped * width, SPRING_CONFIG);
+    },
+    [translateX, currentIndexSV, progress],
+  );
+
+  const goToTab = useCallback(
+    (index: number) => {
+      const width = Dimensions.get('window').width;
+      snapToIndex(index, width);
+    },
+    [snapToIndex],
+  );
+
+  const pan = Gesture.Pan()
+    .activeOffsetX([-10, 10])
+    .failOffsetY([-15, 15])
+    .onUpdate(event => {
+      'worklet';
+      const base = -currentIndexSV.value * containerWidth;
+      let drag = event.translationX;
+      const projected = base + drag;
+      const minX = -(TAB_COUNT - 1) * containerWidth;
+      if (projected > 0) drag = drag * 0.15;
+      else if (projected < minX) drag = drag * 0.15;
+      translateX.value = base + drag;
+      progress.value = -translateX.value / containerWidth;
+    })
+    .onEnd(event => {
+      'worklet';
+      const {translationX: tx, velocityX: vx} = event;
+      let targetIndex = currentIndexSV.value;
+      if (vx < -500 || tx < -containerWidth * 0.3) {
+        targetIndex = currentIndexSV.value + 1;
+      } else if (vx > 500 || tx > containerWidth * 0.3) {
+        targetIndex = currentIndexSV.value - 1;
+      }
+      snapToIndex(targetIndex, containerWidth);
+    });
+
+  const rowAnimStyle = useAnimatedStyle(() => ({
+    transform: [{translateX: translateX.value}],
+  }));
+
+  const indicatorAnimStyle = useAnimatedStyle(() => ({
+    transform: [{translateX: (progress.value * containerWidth) / TAB_COUNT}],
+  }));
+
+  const HEADER_HEIGHT = 72 + insets.top;
+
+  return (
+    <View style={[styles.root, {backgroundColor: colors.bg}]}>
+      {/* ── Header ── */}
+      <View
+        style={[
+          styles.header,
+          {
+            backgroundColor: colors.card,
+            borderBottomColor: colors.border,
+            paddingTop: insets.top + 12,
+            height: HEADER_HEIGHT,
+          },
+        ]}>
+        <View style={styles.headerLeft}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{avatarInitials}</Text>
+          </View>
+          <View>
+            <Text style={[styles.welcomeText, {color: colors.primary}]}>
+              Welcome, {tutorName}!
+            </Text>
+            <Text style={[styles.welcomeSub, {color: colors.textMuted}]}>
+              Manage students &amp; certificates
+            </Text>
+          </View>
+        </View>
+        <TouchableOpacity
+          style={styles.logoutBtn}
+          onPress={handleLogout}
+          activeOpacity={0.8}>
+          <Icon name="logout" size={18} color="#fff" />
+          <Text style={styles.logoutText}>Logout</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* ── Swipeable content ── */}
+      <View
+        style={[styles.content, {marginTop: HEADER_HEIGHT}]}
+        onLayout={e => {
+          const w = e.nativeEvent.layout.width;
+          setContainerWidth(w);
+          translateX.value = -currentIndexSV.value * w;
+        }}>
+        <GestureDetector gesture={pan}>
+          <Animated.View
+            style={[
+              styles.row,
+              {
+                width: containerWidth * TAB_COUNT,
+                paddingBottom: TAB_BAR_HEIGHT,
+                backgroundColor: colors.bg,
+              },
+              rowAnimStyle,
+            ]}>
+            {TABS.map(tab => {
+              const Comp = tab.component;
+              return (
+                <View
+                  key={tab.name}
+                  style={{
+                    width: containerWidth,
+                    overflow: 'hidden',
+                    height: '100%',
+                    backgroundColor: colors.bg,
+                  }}>
+                  <Comp />
+                </View>
+              );
+            })}
+          </Animated.View>
+        </GestureDetector>
+
+        {/* ── Tab bar ── */}
+        <View
+          style={[
+            styles.tabBar,
+            {
+              backgroundColor: colors.card,
+              borderTopColor: colors.border,
+              height: TAB_BAR_HEIGHT,
+              paddingBottom: insets.bottom,
+            },
+          ]}>
+          {/* Sliding indicator */}
+          <View style={styles.indicatorTrack}>
+            <Animated.View
+              style={[
+                styles.indicator,
+                {
+                  width: containerWidth / TAB_COUNT,
+                  backgroundColor: colors.primary,
+                },
+                indicatorAnimStyle,
+              ]}
+            />
+          </View>
+
+          {TABS.map((tab, i) => (
+            <AnimatedTabItem
+              key={tab.name}
+              tab={tab}
+              index={i}
+              progress={progress}
+              colors={colors}
+              onPress={() => goToTab(i)}
+            />
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function AnimatedTabItem({
+  tab,
+  index,
+  progress,
+  colors,
+  onPress,
+}: {
+  tab: (typeof TABS)[0];
+  index: number;
+  progress: Animated.SharedValue<number>;
+  colors: any;
+  onPress: () => void;
+}) {
+  const activeStyle = useAnimatedStyle(() => {
+    const d = Math.abs(progress.value - index);
+    return {opacity: interpolate(d, [0, 0.5], [1, 0], 'clamp')};
+  });
+  const inactiveStyle = useAnimatedStyle(() => {
+    const d = Math.abs(progress.value - index);
+    return {opacity: interpolate(d, [0, 0.5], [0, 1], 'clamp')};
+  });
+
+  return (
+    <TouchableOpacity
+      style={styles.tabItem}
+      onPress={onPress}
+      activeOpacity={0.7}>
+      <View style={styles.iconWrapper}>
+        <Animated.View
+          style={[StyleSheet.absoluteFill, styles.iconCenter, activeStyle]}>
+          <Icon name={tab.icon} size={22} color={colors.primary} />
+        </Animated.View>
+        <Animated.View
+          style={[StyleSheet.absoluteFill, styles.iconCenter, inactiveStyle]}>
+          <Icon name={tab.icon} size={22} color={colors.textMuted} />
+        </Animated.View>
+      </View>
+      <View style={styles.labelWrapper}>
+        <Animated.Text
+          style={[
+            styles.tabLabel,
+            {color: colors.primary, position: 'absolute'},
+            activeStyle,
+          ]}>
+          {tab.name}
+        </Animated.Text>
+        <Animated.Text
+          style={[
+            styles.tabLabel,
+            {color: colors.textMuted, position: 'absolute'},
+            inactiveStyle,
+          ]}>
+          {tab.name}
+        </Animated.Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: {flex: 1},
+  header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  headerLeft: {flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1},
+  avatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#2563eb',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {color: '#fff', fontWeight: '700', fontSize: 15},
+  welcomeText: {fontSize: 15, fontWeight: '700'},
+  welcomeSub: {fontSize: 11, marginTop: 1},
+  logoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ef4444',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+    gap: 5,
+  },
+  logoutText: {color: '#fff', fontWeight: '600', fontSize: 13},
+  content: {flex: 1, overflow: 'hidden'},
+  row: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    flexDirection: 'row',
+    height: '100%',
+  },
+  tabBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: -2},
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+  },
+  indicatorTrack: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+  },
+  indicator: {height: 3, borderRadius: 2},
+  tabItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 8,
+    paddingBottom: 4,
+    gap: 3,
+  },
+  iconWrapper: {width: 26, height: 26},
+  iconCenter: {alignItems: 'center', justifyContent: 'center'},
+  labelWrapper: {
+    height: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 50,
+  },
+  tabLabel: {fontSize: 10, fontWeight: '600', textAlign: 'center'},
+});

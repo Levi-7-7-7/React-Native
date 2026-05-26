@@ -1,4 +1,5 @@
 import React, {useEffect, useState, useCallback, useMemo, useRef} from 'react';
+import RNFS from 'react-native-fs';
 import {
   View,
   Text,
@@ -12,14 +13,15 @@ import {
   ScrollView,
   Animated,
   Alert,
-  Platform,
-  Share,
+  Platform,  
 } from 'react-native';
+import RNShare from 'react-native-share';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import RNHTMLtoPDF from 'react-native-html-to-pdf';
+import { generatePDF } from 'react-native-html-to-pdf';
 import tutorAxios from '../api/tutorAxios';
 import {useTheme} from '../theme';
 import {calcCappedPoints, passThreshold} from '../utils/calcPoints';
+
 
 interface Student {
   _id: string;
@@ -118,10 +120,12 @@ function sortStudents(list: Student[], key: SortKey, dir: SortDir): Student[] {
 // ── PDF HTML Generator ────────────────────────────────────────────────────────
 
 function buildPdfHtml(
+  
   students: Student[],
   certsByStudent: Record<string, Certificate[]>,
   tutorBranch?: string,
   tutorBatch?: string,
+  logoBase64?: string,   // ← add this
 ): string {
   const today = new Date().toLocaleDateString('en-IN', {
     day: '2-digit', month: 'long', year: 'numeric',
@@ -145,6 +149,10 @@ function buildPdfHtml(
       const passLabel = isPassing ? 'PASS' : 'FAIL';
       const batchName  = getBatchName(student.batch);
       const branchName = getBranchName(student.branch);
+
+      
+
+
 
       const certTableRows =
         approved.length === 0
@@ -197,6 +205,10 @@ function buildPdfHtml(
       </div>`;
     })
     .join('');
+  const logoHtml = logoBase64
+      ? `<img src="data:image/png;base64,${logoBase64}" 
+          style="width:56px;height:56px;border-radius:6px;object-fit:contain;margin-right:12px;" />`
+      : `<div class="header-logo">MTI</div>`;
 
   return `<!DOCTYPE html>
 <html>
@@ -246,8 +258,9 @@ function buildPdfHtml(
 <body>
 <div class="page">
   <div class="header">
-    <div class="header-logo">MTI</div>
-    <div class="header-text">
+    ${logoHtml}
+
+    <div class="header-text"> 
       <div class="dept-name">${deptName}</div>
       <div class="inst-name">MAHARAJA'S TECHNOLOGICAL INSTITUTE (MTI)</div>
       <div class="inst-sub">Chembukkavu, Thrissur, Kerala – 680020</div>
@@ -367,63 +380,174 @@ export default function TutorStudentsScreen() {
     }
 
     setPdfLoading(true);
+
+    let generatedFilePath = '';
+
     try {
-      // Fetch all certificates to build per-student breakdown
+      // ─────────────────────────────────────────────
+      // Fetch certificates
+      // ─────────────────────────────────────────────
       const certRes = await tutorAxios.get('/tutors/certificates');
-      const allCerts: Certificate[] = certRes.data.certificates || [];
+
+      const allCerts: Certificate[] =
+        certRes.data.certificates || [];
 
       const certsByStudent: Record<string, Certificate[]> = {};
+
       allCerts.forEach(cert => {
         const sid = (cert.student as any)?._id || cert.student;
+
         if (!sid) return;
+
         const key = sid.toString();
-        if (!certsByStudent[key]) certsByStudent[key] = [];
+
+        if (!certsByStudent[key]) {
+          certsByStudent[key] = [];
+        }
+
         certsByStudent[key].push(cert);
       });
 
-      // Derive branch/batch label from first student
+      // ─────────────────────────────────────────────
+      // Labels
+      // ─────────────────────────────────────────────
       const firstStudent = displayedStudents[0];
-      const tutorBranch = getBranchName(firstStudent?.branch) || undefined;
-      const tutorBatch  = getBatchName(firstStudent?.batch) || undefined;
 
+      const tutorBranch =
+        getBranchName(firstStudent?.branch) || undefined;
+
+      const tutorBatch =
+        getBatchName(firstStudent?.batch) || undefined;
+
+      // ─────────────────────────────────────────────
+      // Load logo
+      // ─────────────────────────────────────────────
+      let logoBase64 = '';
+
+      try {
+        if (Platform.OS === 'android') {
+          logoBase64 = await RNFS.readFileAssets(
+            'mti_logo.png',
+            'base64',
+          );
+        } else {
+          const logoPath =
+            `${RNFS.MainBundlePath}/mti_logo.png`;
+
+          logoBase64 = await RNFS.readFile(
+            logoPath,
+            'base64',
+          );
+        }
+      } catch (e) {
+        console.log('Logo load failed:', e);
+      }
+
+      // ─────────────────────────────────────────────
+      // Build HTML
+      // ─────────────────────────────────────────────
       const html = buildPdfHtml(
         displayedStudents,
         certsByStudent,
         tutorBranch,
         tutorBatch,
+        logoBase64,
       );
 
-      const branchSlug = (tutorBranch || 'dept').replace(/\s+/g, '_').toLowerCase();
-      const dateSlug = new Date()
-        .toLocaleDateString('en-IN')
-        .replace(/\//g, '-');
-      const fileName = `activity_points_${branchSlug}_${dateSlug}`;
+      // ─────────────────────────────────────────────
+      // File name
+      // ─────────────────────────────────────────────
+      const branchSlug = (tutorBranch || 'dept')
+        .replace(/\s+/g, '_')
+        .toLowerCase();
 
-      // Generate PDF into the app's private Documents dir (no storage permission needed)
-      const pdfOptions = {
+      const dateSlug = new Date()
+        .toISOString()
+        .slice(0, 10);
+
+      const fileName =
+        `activity_points_${branchSlug}_${dateSlug}`;
+
+      // ─────────────────────────────────────────────
+      // Generate PDF
+      // IMPORTANT:
+      // Use "Caches" instead of "Documents"
+      // ─────────────────────────────────────────────
+      const pdf = await generatePDF({
         html,
         fileName,
-        directory: 'Documents',
-        width: 595,   // A4 width in pts
-        height: 842,  // A4 height in pts
-      };
-
-      const result = await RNHTMLtoPDF.convert(pdfOptions);
-
-      if (!result.filePath) throw new Error('No file path returned');
-
-      // Open system share sheet — lets user save to Downloads, Drive, WhatsApp, etc.
-      // Works on all Android API levels with zero storage permissions needed.
-      await Share.share({
-        url: Platform.OS === 'android' ? `file://${result.filePath}` : result.filePath,
-        title: `${fileName}.pdf`,
-        message: `Activity Points Report — ${displayedStudents.length} student${displayedStudents.length !== 1 ? 's' : ''}`,
+        directory: 'Caches',
+        width: 595,
+        height: 842,
       });
 
+      if (!pdf.filePath) {
+        throw new Error('PDF generation failed');
+      }
+      
+      console.log('PDF RESULT:', pdf);
+
+      generatedFilePath = pdf.filePath;
+      
+      // ─────────────────────────────────────────────
+      // Share PDF
+      // ─────────────────────────────────────────────
+    console.log('PDF PATH:', generatedFilePath);
+
+    const sharePath = generatedFilePath.startsWith('file://')
+  ? generatedFilePath
+  : `file://${generatedFilePath}`;
+
+    console.log('SHARE PATH:', sharePath);
+
+    await RNShare.open({
+      url: sharePath,
+      type: 'application/pdf',
+      filename: `${fileName}.pdf`,
+      title: 'Share PDF',
+      failOnCancel: false,
+    });
+
+      // ─────────────────────────────────────────────
+      // DELETE PDF AFTER SHARING
+      // ─────────────────────────────────────────────
+      try {
+        const exists = await RNFS.exists(
+          generatedFilePath,
+        );
+
+        if (exists) {
+          await RNFS.unlink(generatedFilePath);
+
+          console.log('Temporary PDF deleted');
+        }
+      } catch (deleteError) {
+        console.log(
+          'Could not delete temp PDF:',
+          deleteError,
+        );
+      }
     } catch (err: any) {
-      console.error('PDF export failed:', err);
-      Alert.alert('Export Failed', 'Could not generate PDF. Please try again.');
+      console.error('PDF Export Error:', err);
+
+      Alert.alert(
+        'Export Failed',
+        err?.message || 'Could not generate PDF',
+      );
     } finally {
+      // Extra cleanup safety
+      try {
+        if (generatedFilePath) {
+          const exists = await RNFS.exists(
+            generatedFilePath,
+          );
+
+          if (exists) {
+            await RNFS.unlink(generatedFilePath);
+          }
+        }
+      } catch {}
+
       setPdfLoading(false);
     }
   };

@@ -14,9 +14,8 @@ import {
   Animated,
   Alert,
   Platform,
-  PermissionsAndroid,
 } from 'react-native';
-import { Share } from 'react-native';
+import { Linking } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { generatePDF } from 'react-native-html-to-pdf';
 import tutorAxios from '../api/tutorAxios';
@@ -176,7 +175,7 @@ function buildPdfHtml(
       return `
       <div class="student-block">
         <div class="student-header">
-          <div class="student-num">${idx + 1}</div>
+          <div class="student-num-cell"><div class="student-num">${idx + 1}</div></div>
           <div class="student-info">
             <div class="student-name">${student.name || '—'}</div>
             <div class="student-meta">Reg No: <b>${student.registerNumber || '—'}</b> &nbsp;|&nbsp; Branch: ${branchName || '—'} &nbsp;|&nbsp; Batch: ${batchName || '—'}</div>
@@ -207,8 +206,7 @@ function buildPdfHtml(
     })
     .join('');
   const logoHtml = logoBase64
-      ? `<img src="data:image/png;base64,${logoBase64}" 
-          style="width:56px;height:56px;border-radius:6px;object-fit:contain;margin-right:12px;" />`
+      ? `<img src="data:image/png;base64,${logoBase64}" style="width:56px;height:56px;border-radius:6px;" />`
       : `<div class="header-logo">MTI</div>`;
 
   return `<!DOCTYPE html>
@@ -221,9 +219,10 @@ function buildPdfHtml(
   .page { padding: 20px 18px 30px; }
 
   /* Header */
-  .header { display: flex; align-items: center; padding-bottom: 10px; border-bottom: 2px solid #0f2864; margin-bottom: 6px; }
-  .header-logo { width: 56px; height: 56px; background: #1e3a8a; border-radius: 6px; display:flex; align-items:center; justify-content:center; color:#fff; font-size:18px; font-weight:700; flex-shrink:0; margin-right:12px; }
-  .header-text { flex: 1; text-align: center; }
+  .header { display: table; width: 100%; padding-bottom: 10px; border-bottom: 2px solid #0f2864; margin-bottom: 6px; }
+  .header-logo-cell { display: table-cell; vertical-align: middle; width: 68px; padding-right: 12px; }
+  .header-logo { width: 56px; height: 56px; background: #1e3a8a; border-radius: 6px; color:#fff; font-size:18px; font-weight:700; text-align:center; line-height:56px; }
+  .header-text { display: table-cell; vertical-align: middle; text-align: center; }
   .dept-name { font-size: 15px; font-weight: 700; color: #0f2864; letter-spacing: 0.5px; }
   .inst-name { font-size: 11px; font-weight: 700; margin-top: 3px; }
   .inst-sub  { font-size: 8px; color: #555; margin-top: 2px; }
@@ -233,13 +232,14 @@ function buildPdfHtml(
 
   /* Student block */
   .student-block { margin-bottom: 16px; page-break-inside: avoid; }
-  .student-header { display: flex; align-items: flex-start; background: #f2f6ff; border: 1px solid #b9cdf5; border-radius: 5px; padding: 10px 12px; margin-bottom: 4px; }
-  .student-num { width: 28px; height: 28px; border-radius: 50%; background: #1e3a8a; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; margin-right: 12px; margin-top: 2px; }
-  .student-info { flex: 1; }
+  .student-header { display: table; width: 100%; background: #f2f6ff; border: 1px solid #b9cdf5; border-radius: 5px; padding: 10px 12px; margin-bottom: 4px; }
+  .student-num-cell { display: table-cell; vertical-align: top; width: 40px; padding-right: 12px; }
+  .student-num { width: 28px; height: 28px; border-radius: 50%; background: #1e3a8a; color: #fff; text-align: center; line-height: 28px; font-size: 11px; font-weight: 700; margin-top: 2px; }
+  .student-info { display: table-cell; vertical-align: top; }
   .student-name { font-size: 13px; font-weight: 700; color: #0a1e5a; }
   .student-meta { font-size: 9px; color: #555; margin-top: 3px; }
   .lateral-badge { display: inline-block; background: #fef9c3; color: #854d0e; font-size: 8px; font-weight: 700; padding: 2px 6px; border-radius: 10px; margin-top: 4px; }
-  .points-col { text-align: right; flex-shrink: 0; margin-left: 12px; }
+  .points-col { display: table-cell; vertical-align: top; text-align: right; width: 70px; padding-left: 12px; }
   .points-value { font-size: 26px; font-weight: 700; line-height: 1; }
   .points-label { font-size: 7px; color: #888; text-align: center; margin-top: 2px; }
   .pass-badge { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 9px; font-weight: 700; margin-top: 5px; }
@@ -249,8 +249,10 @@ function buildPdfHtml(
   .cert-table th { background: #1e3a8a; color: #fff; padding: 5px 6px; text-align: left; font-weight: 700; }
   .cert-table td { padding: 4px 6px; border-bottom: 1px solid #e5e7eb; }
 
-  /* Footer */
-  .footer { position: fixed; bottom: 0; left: 0; right: 0; display: flex; justify-content: space-between; font-size: 8px; color: #aaa; border-top: 1px solid #e5e7eb; padding: 5px 18px; }
+  /* Footer — block, not fixed */
+  .footer { display: table; width: 100%; font-size: 8px; color: #aaa; border-top: 1px solid #e5e7eb; padding: 5px 0; margin-top: 12px; }
+  .footer-left  { display: table-cell; text-align: left; }
+  .footer-right { display: table-cell; text-align: right; }
 
   /* Divider */
   .divider { border: none; border-top: 1px solid #d2dcf5; margin: 12px 0; }
@@ -259,11 +261,10 @@ function buildPdfHtml(
 <body>
 <div class="page">
   <div class="header">
-    ${logoHtml}
-
-    <div class="header-text"> 
+    <div class="header-logo-cell">${logoHtml}</div>
+    <div class="header-text">
       <div class="dept-name">${deptName}</div>
-      <div class="inst-name">MAHARAJA'S TECHNOLOGICAL INSTITUTE (MTI)</div>
+      <div class="inst-name">MAHARAJA&#39;S TECHNOLOGICAL INSTITUTE (MTI)</div>
       <div class="inst-sub">Chembukkavu, Thrissur, Kerala – 680020</div>
       <div class="inst-sub">Affiliated to SBTE Kerala | AICTE Approved | Est. 1946</div>
       <div class="inst-sub">Phone: 0487-2333290 | E-Mail: mtithrsr@mtithrissur.ac.in</div>
@@ -470,24 +471,16 @@ export default function TutorStudentsScreen() {
         `activity_points_${branchSlug}_${dateSlug}`;
 
       // ─────────────────────────────────────────────
-      // Request storage permission on Android < 10
-      // ─────────────────────────────────────────────
-      if (Platform.OS === 'android' && Platform.Version < 29) {
-        const granted = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
-        );
-        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-          throw new Error('Storage permission denied');
-        }
-      }
-
-      // ─────────────────────────────────────────────
-      // Generate PDF — save to Documents so it persists
+      // Generate PDF
+      // Use explicit filePath inside CacheDir — it always
+      // exists on Android and never needs FileProvider or
+      // storage permissions. 'Documents' is unreliable on
+      // react-native-html-to-pdf v1.x Android.
       // ─────────────────────────────────────────────
       const pdf = await generatePDF({
         html,
         fileName,
-        directory: 'Documents',
+        directory: 'Caches',
         width: 595,
         height: 842,
       });
@@ -501,24 +494,26 @@ export default function TutorStudentsScreen() {
       generatedFilePath = pdf.filePath;
 
       // ─────────────────────────────────────────────
-      // Share PDF using built-in Share (no FileProvider needed)
+      // Open the PDF directly with Linking.
+      // Works for files in Caches on Android without
+      // needing FileProvider or react-native-share.
       // ─────────────────────────────────────────────
-      const shareUrl = generatedFilePath.startsWith('file://')
+      const fileUrl = generatedFilePath.startsWith('file://')
         ? generatedFilePath
         : `file://${generatedFilePath}`;
 
-      console.log('SHARE PATH:', shareUrl);
+      console.log('OPEN PATH:', fileUrl);
 
-      await Share.share({
-        title: `${fileName}.pdf`,
-        url: shareUrl,   // iOS uses this
-        message: Platform.OS === 'android' ? shareUrl : `Activity Points Report — ${fileName}`,
-      });
-
-      Alert.alert(
-        'PDF Saved',
-        `File saved to:\nDocuments/${fileName}.pdf`,
-      );
+      const canOpen = await Linking.canOpenURL(fileUrl);
+      if (canOpen) {
+        await Linking.openURL(fileUrl);
+      } else {
+        // Fallback: tell user where file is
+        Alert.alert(
+          'PDF Generated',
+          `PDF saved to cache. Path:\n${generatedFilePath}`,
+        );
+      }
     } catch (err: any) {
       console.error('PDF Export Error:', err);
 

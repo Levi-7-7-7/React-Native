@@ -47,6 +47,7 @@ interface Certificate {
   prizeType?: string;
   pointsAwarded?: number;
   dateFrom?: string;
+  fileUrl?: string;
   status: string;
 }
 
@@ -158,19 +159,21 @@ function buildPdfHtml(
 
       const certTableRows =
         approved.length === 0
-          ? `<tr><td colspan="7" style="text-align:center;color:#9ca3af;font-style:italic;padding:10px">No approved certificates</td></tr>`
+          ? `<tr><td colspan="3" style="text-align:center;color:#9ca3af;font-style:italic;padding:10px">No approved certificates</td></tr>`
           : approved
               .map(
-                (cert, ci) => `
+                (cert, ci) => {
+                  const certName = cert.eventName || cert.subcategory || '—';
+                  const nameCell = cert.fileUrl
+                    ? `<a href="${cert.fileUrl}" style="color:#2563eb;text-decoration:underline;">${certName}</a>`
+                    : certName;
+                  return `
               <tr style="background:${ci % 2 === 0 ? '#f5f9ff' : '#fff'}">
                 <td style="text-align:center">${ci + 1}</td>
-                <td>${cert.eventName || cert.subcategory || '—'}</td>
-                <td>${cert.category?.name || '—'}</td>
-                <td>${cert.subcategory || '—'}</td>
-                <td style="text-align:center">${cert.level || '—'}</td>
-                <td style="text-align:center">${cert.prizeType || '—'}</td>
+                <td>${nameCell}</td>
                 <td style="text-align:center;font-weight:700;color:#1e3a8a">${cert.pointsAwarded ?? 0}</td>
-              </tr>`,
+              </tr>`;
+                },
               )
               .join('');
 
@@ -194,12 +197,8 @@ function buildPdfHtml(
           <thead>
             <tr>
               <th style="width:30px">#</th>
-              <th>Certificate / Event</th>
-              <th>Category</th>
-              <th>Subcategory</th>
-              <th style="width:60px">Level</th>
-              <th style="width:60px">Prize</th>
-              <th style="width:50px">Pts</th>
+              <th>Certificate Name</th>
+              <th style="width:50px">Points</th>
             </tr>
           </thead>
           <tbody>${certTableRows}</tbody>
@@ -248,8 +247,10 @@ function buildPdfHtml(
 
   /* Certificate table */
   .cert-table { width: 100%; border-collapse: collapse; font-size: 9px; }
-  .cert-table th { background: #1e3a8a; color: #fff; padding: 5px 6px; text-align: left; font-weight: 700; }
-  .cert-table td { padding: 4px 6px; border-bottom: 1px solid #e5e7eb; }
+  .cert-table th { background: #1e3a8a; color: #fff; padding: 5px 8px; text-align: left; font-weight: 700; }
+  .cert-table td { padding: 5px 8px; border-bottom: 1px solid #e5e7eb; }
+  .cert-table td:nth-child(2) { width: auto; }
+  .cert-table td a { color: #2563eb; text-decoration: underline; }
 
   /* Footer — block, not fixed */
   .footer { display: table; width: 100%; font-size: 8px; color: #aaa; border-top: 1px solid #e5e7eb; padding: 5px 0; margin-top: 12px; }

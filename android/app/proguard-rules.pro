@@ -131,3 +131,9 @@
     java.lang.Object writeReplace();
     java.lang.Object readResolve();
 }
+
+-dontwarn com.gemalto.jp2.**
+-dontwarn com.tom_roush.pdfbox.**
+-dontwarn org.apache.commons.logging.**
+
+-keep class com.tom_roush.** { *; }

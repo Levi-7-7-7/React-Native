@@ -11,8 +11,11 @@ import {
   Modal,
   TextInput,
   Linking,
+  Platform,
+  PermissionsAndroid,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import RNFS from 'react-native-fs';
 import tutorAxios from '../api/tutorAxios';
 import {useTheme} from '../theme';
 
@@ -29,6 +32,17 @@ interface Certificate {
   status: string;
 }
 
+function getFileExtension(url = '') {
+  return (url.split('.').pop()?.split('?')[0] || 'jpg').toLowerCase();
+}
+
+function isPdf(url = '') {
+  return (
+    url.toLowerCase().includes('.pdf') ||
+    url.toLowerCase().includes('application/pdf')
+  );
+}
+
 export default function TutorApprovedScreen() {
   const {colors} = useTheme();
   const [certs, setCerts] = useState<Certificate[]>([]);
@@ -37,6 +51,7 @@ export default function TutorApprovedScreen() {
   const [search, setSearch] = useState('');
   const [revertingId, setRevertingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -85,6 +100,87 @@ export default function TutorApprovedScreen() {
     }
   };
 
+  // ── Download certificate ──
+  const handleDownload = async (cert: Certificate) => {
+    if (!cert.fileUrl) return;
+    setDownloadingId(cert._id);
+    try {
+      // Request Android storage permission if needed
+      if (Platform.OS === 'android') {
+        const sdkInt = parseInt(Platform.Version as string, 10);
+        if (sdkInt < 33) {
+          const granted = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+            {
+              title: 'Storage Permission',
+              message: 'Needed to save the certificate to your device.',
+              buttonPositive: 'Allow',
+              buttonNegative: 'Deny',
+            },
+          );
+          if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+            Alert.alert('Permission denied', 'Cannot save file without storage permission.');
+            return;
+          }
+        }
+      }
+
+      const ext = getFileExtension(cert.fileUrl);
+      const safeName = (cert.student?.name || 'cert').replace(/[^a-zA-Z0-9]/g, '_');
+      const safeSubcat = (cert.subcategory || '').replace(/[^a-zA-Z0-9]/g, '_');
+      const fileName = `${safeName}_${safeSubcat}_${cert._id.slice(-6)}.${ext}`;
+
+      const destDir =
+        Platform.OS === 'android'
+          ? `${RNFS.DownloadDirectoryPath}`
+          : `${RNFS.DocumentDirectoryPath}`;
+      const destPath = `${destDir}/${fileName}`;
+
+      const downloadResult = await RNFS.downloadFile({
+        fromUrl: cert.fileUrl,
+        toFile: destPath,
+      }).promise;
+
+      if (downloadResult.statusCode === 200) {
+        Alert.alert(
+          'Downloaded!',
+          Platform.OS === 'android'
+            ? `Saved to Downloads:\n${fileName}`
+            : `Saved to Files:\n${fileName}`,
+          [
+            {text: 'OK'},
+            ...(Platform.OS === 'ios'
+              ? [
+                  {
+                    text: 'Open',
+                    onPress: () => Linking.openURL(`file://${destPath}`),
+                  },
+                ]
+              : []),
+          ],
+        );
+      } else {
+        throw new Error(`Download failed: status ${downloadResult.statusCode}`);
+      }
+    } catch (err: any) {
+      console.error('Download error:', err);
+      // Fallback: open in browser
+      Alert.alert(
+        'Download Failed',
+        'Could not save the file. Open it in your browser instead?',
+        [
+          {text: 'Cancel', style: 'cancel'},
+          {
+            text: 'Open in Browser',
+            onPress: () => cert.fileUrl && Linking.openURL(cert.fileUrl),
+          },
+        ],
+      );
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   const renderItem = ({item}: {item: Certificate}) => (
     <View
       style={[
@@ -119,7 +215,8 @@ export default function TutorApprovedScreen() {
 
         <View style={styles.rightCol}>
           {/* Points badge */}
-          <View style={[styles.pointsBadge, {backgroundColor: colors.badgeApprovedBg}]}>
+          <View
+            style={[styles.pointsBadge, {backgroundColor: colors.badgeApprovedBg}]}>
             <Text style={[styles.pointsText, {color: colors.badgeApprovedText}]}>
               +{item.pointsAwarded ?? 0} pts
             </Text>
@@ -135,11 +232,46 @@ export default function TutorApprovedScreen() {
             </TouchableOpacity>
           )}
 
+          {/* Download button */}
+          {item.fileUrl && (
+            <TouchableOpacity
+              style={[
+                styles.actionBtn,
+                {
+                  borderColor: '#bbf7d0',
+                  backgroundColor:
+                    downloadingId === item._id ? '#d1fae5' : '#f0fdf4',
+                },
+                downloadingId === item._id && styles.btnDisabled,
+              ]}
+              onPress={() => handleDownload(item)}
+              disabled={downloadingId === item._id}>
+              {downloadingId === item._id ? (
+                <ActivityIndicator size="small" color="#059669" />
+              ) : (
+                <>
+                  <Icon
+                    name={isPdf(item.fileUrl) ? 'file-pdf-box' : 'download-outline'}
+                    size={13}
+                    color="#059669"
+                  />
+                  <Text style={[styles.actionBtnText, {color: '#059669'}]}>
+                    Download
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+
           {/* Revert button */}
           <TouchableOpacity
             style={[
               styles.actionBtn,
-              {borderColor: '#fcd34d', backgroundColor: revertingId === item._id ? '#fef3c7' : '#fffbeb'},
+              {
+                borderColor: '#fcd34d',
+                backgroundColor:
+                  revertingId === item._id ? '#fef3c7' : '#fffbeb',
+              },
               revertingId === item._id && styles.btnDisabled,
             ]}
             onPress={() => setConfirmId(item._id)}
@@ -185,7 +317,12 @@ export default function TutorApprovedScreen() {
           styles.searchWrapper,
           {backgroundColor: colors.card, borderColor: colors.border},
         ]}>
-        <Icon name="magnify" size={20} color={colors.textMuted} style={styles.searchIcon} />
+        <Icon
+          name="magnify"
+          size={20}
+          color={colors.textMuted}
+          style={styles.searchIcon}
+        />
         <TextInput
           style={[styles.searchInput, {color: colors.text}]}
           placeholder="Search by name or reg. number…"
@@ -216,7 +353,11 @@ export default function TutorApprovedScreen() {
         }
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Icon name="certificate-outline" size={48} color={colors.textMuted} />
+            <Icon
+              name="certificate-outline"
+              size={48}
+              color={colors.textMuted}
+            />
             <Text style={[styles.emptyText, {color: colors.textMuted}]}>
               {search
                 ? 'No matching certificates found.'
@@ -311,7 +452,12 @@ const styles = StyleSheet.create({
   actionBtnText: {fontSize: 12, fontWeight: '600'},
   approvedDate: {fontSize: 11, marginTop: 8},
   btnDisabled: {opacity: 0.6},
-  empty: {alignItems: 'center', justifyContent: 'center', paddingTop: 60, gap: 12},
+  empty: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 60,
+    gap: 12,
+  },
   emptyText: {fontSize: 14},
   overlay: {
     flex: 1,

@@ -12,8 +12,11 @@ import {
   TextInput,
   ScrollView,
   Linking,
+  Platform,
+  PermissionsAndroid,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import RNFS from 'react-native-fs';
 import tutorAxios from '../api/tutorAxios';
 import {useTheme} from '../theme';
 
@@ -41,6 +44,7 @@ export default function TutorPendingScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   // Reject modal
   const [rejectCert, setRejectCert] = useState<Certificate | null>(null);
@@ -187,6 +191,65 @@ export default function TutorPendingScreen() {
     }
   };
 
+  // ── Download certificate ──
+  const handleDownload = async (cert: Certificate) => {
+    if (!cert.fileUrl) return;
+    setDownloadingId(cert._id);
+    try {
+      if (Platform.OS === 'android') {
+        const sdkInt = parseInt(Platform.Version as string, 10);
+        if (sdkInt < 33) {
+          const granted = await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+            {
+              title: 'Storage Permission',
+              message: 'Needed to save the certificate to your device.',
+              buttonPositive: 'Allow',
+              buttonNegative: 'Deny',
+            },
+          );
+          if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+            Alert.alert('Permission denied', 'Cannot save file without storage permission.');
+            return;
+          }
+        }
+      }
+      const ext = (cert.fileUrl.split('.').pop()?.split('?')[0] || 'jpg').toLowerCase();
+      const safeName = (cert.student?.name || 'cert').replace(/[^a-zA-Z0-9]/g, '_');
+      const safeSubcat = (cert.subcategory || '').replace(/[^a-zA-Z0-9]/g, '_');
+      const fileName = `${safeName}_${safeSubcat}_${cert._id.slice(-6)}.${ext}`;
+      const destDir =
+        Platform.OS === 'android'
+          ? `${RNFS.DownloadDirectoryPath}`
+          : `${RNFS.DocumentDirectoryPath}`;
+      const destPath = `${destDir}/${fileName}`;
+      const result = await RNFS.downloadFile({fromUrl: cert.fileUrl, toFile: destPath}).promise;
+      if (result.statusCode === 200) {
+        Alert.alert(
+          'Downloaded!',
+          Platform.OS === 'android'
+            ? `Saved to Downloads:\n${fileName}`
+            : `Saved to Files:\n${fileName}`,
+          [
+            {text: 'OK'},
+            ...(Platform.OS === 'ios'
+              ? [{text: 'Open', onPress: () => Linking.openURL(`file://${destPath}`)}]
+              : []),
+          ],
+        );
+      } else {
+        throw new Error(`Status ${result.statusCode}`);
+      }
+    } catch {
+      Alert.alert('Download Failed', 'Open in browser instead?', [
+        {text: 'Cancel', style: 'cancel'},
+        {text: 'Open', onPress: () => cert.fileUrl && Linking.openURL(cert.fileUrl)},
+      ]);
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   if (loading) {
     return (
       <View style={[styles.center, {backgroundColor: colors.bg}]}>
@@ -280,8 +343,28 @@ export default function TutorPendingScreen() {
               onPress={() => Linking.openURL(item.fileUrl!)}>
               <Icon name="eye-outline" size={14} color={colors.primary} />
               <Text style={[styles.linkText, {color: colors.primary}]}>
-                View Certificate
+                View
               </Text>
+            </TouchableOpacity>
+          )}
+          {item.fileUrl && (
+            <TouchableOpacity
+              style={[
+                styles.linkBtn,
+                downloadingId === item._id && {opacity: 0.5},
+              ]}
+              onPress={() => handleDownload(item)}
+              disabled={downloadingId === item._id}>
+              {downloadingId === item._id ? (
+                <ActivityIndicator size="small" color="#059669" />
+              ) : (
+                <>
+                  <Icon name="download-outline" size={14} color="#059669" />
+                  <Text style={[styles.linkText, {color: '#059669'}]}>
+                    Download
+                  </Text>
+                </>
+              )}
             </TouchableOpacity>
           )}
           <TouchableOpacity

@@ -13,10 +13,9 @@ import {
   Animated,
   Alert,
   Platform,
-  PermissionsAndroid,
+  Share,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import RNFS from 'react-native-fs';
 import RNHTMLtoPDF from 'react-native-html-to-pdf';
 import tutorAxios from '../api/tutorAxios';
 import {useTheme} from '../theme';
@@ -369,27 +368,6 @@ export default function TutorStudentsScreen() {
 
     setPdfLoading(true);
     try {
-      // Request Android permission for older APIs
-      if (Platform.OS === 'android') {
-        const sdkInt = parseInt(Platform.Version as string, 10);
-        if (sdkInt < 33) {
-          const granted = await PermissionsAndroid.request(
-            PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
-            {
-              title: 'Storage Permission',
-              message: 'Needed to save the PDF report to your device.',
-              buttonPositive: 'Allow',
-              buttonNegative: 'Deny',
-            },
-          );
-          if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-            Alert.alert('Permission Denied', 'Cannot save file without storage permission.');
-            setPdfLoading(false);
-            return;
-          }
-        }
-      }
-
       // Fetch all certificates to build per-student breakdown
       const certRes = await tutorAxios.get('/tutors/certificates');
       const allCerts: Certificate[] = certRes.data.certificates || [];
@@ -403,7 +381,7 @@ export default function TutorStudentsScreen() {
         certsByStudent[key].push(cert);
       });
 
-      // Derive branch/batch label from first student (same as web app)
+      // Derive branch/batch label from first student
       const firstStudent = displayedStudents[0];
       const tutorBranch = getBranchName(firstStudent?.branch) || undefined;
       const tutorBatch  = getBatchName(firstStudent?.batch) || undefined;
@@ -421,10 +399,11 @@ export default function TutorStudentsScreen() {
         .replace(/\//g, '-');
       const fileName = `activity_points_${branchSlug}_${dateSlug}`;
 
+      // Generate PDF into the app's private Documents dir (no storage permission needed)
       const pdfOptions = {
         html,
         fileName,
-        directory: Platform.OS === 'android' ? 'Download' : 'Documents',
+        directory: 'Documents',
         width: 595,   // A4 width in pts
         height: 842,  // A4 height in pts
       };
@@ -433,20 +412,14 @@ export default function TutorStudentsScreen() {
 
       if (!result.filePath) throw new Error('No file path returned');
 
-      // On Android, also copy to Downloads folder so it's easily accessible
-      if (Platform.OS === 'android') {
-        const destPath = `${RNFS.DownloadDirectoryPath}/${fileName}.pdf`;
-        await RNFS.copyFile(result.filePath, destPath);
-        Alert.alert(
-          '✅ PDF Saved',
-          `Saved to Downloads:\n${fileName}.pdf\n\n${displayedStudents.length} student${displayedStudents.length !== 1 ? 's' : ''} included.`,
-        );
-      } else {
-        Alert.alert(
-          '✅ PDF Saved',
-          `Saved to Files:\n${fileName}.pdf\n\n${displayedStudents.length} student${displayedStudents.length !== 1 ? 's' : ''} included.`,
-        );
-      }
+      // Open system share sheet — lets user save to Downloads, Drive, WhatsApp, etc.
+      // Works on all Android API levels with zero storage permissions needed.
+      await Share.share({
+        url: Platform.OS === 'android' ? `file://${result.filePath}` : result.filePath,
+        title: `${fileName}.pdf`,
+        message: `Activity Points Report — ${displayedStudents.length} student${displayedStudents.length !== 1 ? 's' : ''}`,
+      });
+
     } catch (err: any) {
       console.error('PDF export failed:', err);
       Alert.alert('Export Failed', 'Could not generate PDF. Please try again.');

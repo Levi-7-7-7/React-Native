@@ -136,4 +136,8 @@
 -dontwarn com.tom_roush.pdfbox.**
 -dontwarn org.apache.commons.logging.**
 
--keep class com.tom_roush.** { *; }
+# Keep only the classes react-native-html-to-pdf actually calls
+-keep class com.tom_roush.pdfbox.android.PDFBoxResourceLoader { *; }
+-keep class com.tom_roush.pdfbox.pdmodel.PDDocument { *; }
+-keep class com.tom_roush.pdfbox.pdmodel.PDPage { *; }
+-keep class com.tom_roush.pdfbox.pdmodel.PDPageTree { *; }

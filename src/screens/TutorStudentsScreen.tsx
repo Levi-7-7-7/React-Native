@@ -164,9 +164,9 @@ function buildPdfHtml(
               .map(
                 (cert, ci) => {
                   const certName = cert.eventName || cert.subcategory || '—';
-                  const nameCell = cert.fileUrl
-                    ? `<a href="${cert.fileUrl}" style="color:#2563eb;text-decoration:underline;">${certName}</a>`
-                    : certName;
+                  const nameCell = certName;
+                    // ? `<a href="${cert.fileUrl}" style="color:#2563eb;text-decoration:underline;">${certName}</a>`
+                    // : certName;
                   return `
               <tr style="background:${ci % 2 === 0 ? '#f5f9ff' : '#fff'}">
                 <td style="text-align:center">${ci + 1}</td>
@@ -207,8 +207,15 @@ function buildPdfHtml(
     })
     .join('');
   const logoHtml = logoBase64
-      ? `<img src="data:image/png;base64,${logoBase64}" style="width:56px;height:56px;border-radius:6px;" />`
-      : `<div class="header-logo">MTI</div>`;
+  ? `<img 
+       src="data:image/png;base64,${logoBase64}" 
+       style="
+         width:140px;
+         height:auto;
+         border-radius:6px;
+       " 
+     />`
+  : `<div class="header-logo">MTI</div>`;
 
   return `<!DOCTYPE html>
 <html>
@@ -221,7 +228,12 @@ function buildPdfHtml(
 
   /* Header */
   .header { display: table; width: 100%; padding-bottom: 10px; border-bottom: 2px solid #0f2864; margin-bottom: 6px; }
-  .header-logo-cell { display: table-cell; vertical-align: middle; width: 68px; padding-right: 12px; }
+  .header-logo-cell {
+    display: table-cell;
+    vertical-align: middle;
+    width: 150px;
+    padding-right: 12px;
+  }
   .header-logo { width: 56px; height: 56px; background: #1e3a8a; border-radius: 6px; color:#fff; font-size:18px; font-weight:700; text-align:center; line-height:56px; }
   .header-text { display: table-cell; vertical-align: middle; text-align: center; }
   .dept-name { font-size: 15px; font-weight: 700; color: #0f2864; letter-spacing: 0.5px; }
@@ -250,7 +262,7 @@ function buildPdfHtml(
   .cert-table th { background: #1e3a8a; color: #fff; padding: 5px 8px; text-align: left; font-weight: 700; }
   .cert-table td { padding: 5px 8px; border-bottom: 1px solid #e5e7eb; }
   .cert-table td:nth-child(2) { width: auto; }
-  .cert-table td a { color: #2563eb; text-decoration: underline; }
+  // .cert-table td a { color: #2563eb; text-decoration: underline; }
 
   /* Footer — block, not fixed */
   .footer { display: table; width: 100%; font-size: 8px; color: #aaa; border-top: 1px solid #e5e7eb; padding: 5px 0; margin-top: 12px; }
@@ -263,15 +275,17 @@ function buildPdfHtml(
 </head>
 <body>
 <div class="page">
-  <div class="header">
-    <div class="header-logo-cell">${logoHtml}</div>
-    <div class="header-text">
+<div class="header">
+  <div class="header-logo-cell">${logoHtml}</div>
+
+  <div class="header-text">
       <div class="dept-name">${deptName}</div>
       <div class="inst-name">MAHARAJA&#39;S TECHNOLOGICAL INSTITUTE (MTI)</div>
       <div class="inst-sub">Chembukkavu, Thrissur, Kerala – 680020</div>
       <div class="inst-sub">Affiliated to SBTE Kerala | AICTE Approved | Est. 1946</div>
       <div class="inst-sub">Phone: 0487-2333290 | E-Mail: mtithrsr@mtithrissur.ac.in</div>
     </div>
+      <div class="header-logo-cell"></div>
   </div>
 
   <div class="title-band">STUDENT ACTIVITY POINTS REPORT${batchLabel}</div>
@@ -452,8 +466,8 @@ export default function TutorStudentsScreen() {
         .toISOString()
         .slice(0, 10);
 
-      const fileName =
-        `activity_points_${branchSlug}_${dateSlug}`;
+       const fileName =
+      `activity_points_${branchSlug}_${dateSlug}_${Date.now()}`;
 
       // ─────────────────────────────────────────────
       // Generate PDF

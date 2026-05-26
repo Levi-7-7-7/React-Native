@@ -7,6 +7,7 @@
 import React, {createContext, useState, useEffect, useContext} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axiosInstance from '../api/axiosInstance';
+import tutorAxios from '../api/tutorAxios';
 
 interface AuthContextType {
   user: any;
@@ -27,46 +28,64 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const init = async () => {
-      try {
-        const storedRole = await AsyncStorage.getItem('role');
+  const init = async () => {
+    try {
+      const storedRole = await AsyncStorage.getItem('role');
 
-        if (storedRole === 'student') {
-          const token = await AsyncStorage.getItem('token');
-          if (token) {
-            try {
-              const res = await axiosInstance.get('/students/me');
-              setUser(res.data);
+      if (storedRole === 'student') {
+        const token = await AsyncStorage.getItem('token');
+
+        if (token) {
+          try {
+            const res = await axiosInstance.get('/students/me');
+
+            setUser(res.data);
+            setRole('student');
+          } catch (err: any) {
+            if (err?.response?.status === 401) {
+              await clearAll();
+            } else {
+              // Network/server issue — keep session
               setRole('student');
-            } catch (err: any) {
-              if (err?.response?.status === 401) {
-                await clearAll();
-              } else {
-                // Network error — keep student session open
-                setRole('student');
-              }
             }
           }
-        } else if (storedRole === 'tutor') {
-          const token = await AsyncStorage.getItem('tutorToken');
-          if (token) {
-            // Restore tutor session directly from AsyncStorage.
-            // No network ping needed — if the token is expired the
-            // tutorAxios 401 interceptor will clear storage on the
-            // next real API call and log the user out automatically.
+        }
+      } else if (storedRole === 'tutor') {
+        const token = await AsyncStorage.getItem('tutorToken');
+
+        if (token) {
+          try {
+            // IMPORTANT:
+            // keeps LoadingScreen visible during Render cold boot
+            await tutorAxios.get('/tutors/students');
+
             const tutorName = await AsyncStorage.getItem('tutorName');
+
             setUser({name: tutorName || 'Tutor'});
             setRole('tutor');
+          } catch (err: any) {
+            if (err?.response?.status === 401) {
+              await clearAll();
+            } else {
+              // Render sleeping/network issue
+              // keep tutor logged in
+              const tutorName = await AsyncStorage.getItem('tutorName');
+
+              setUser({name: tutorName || 'Tutor'});
+              setRole('tutor');
+            }
           }
         }
-      } catch {
-        await clearAll();
-      } finally {
-        setLoading(false);
       }
-    };
-    init();
-  }, []);
+    } catch {
+      await clearAll();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  init();
+}, []);
 
   const clearAll = async () => {
     await AsyncStorage.multiRemove([

@@ -13,9 +13,10 @@ import {
   ScrollView,
   Animated,
   Alert,
-  Platform,  
+  Platform,
+  PermissionsAndroid,
 } from 'react-native';
-import RNShare from 'react-native-share';
+import { Share } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { generatePDF } from 'react-native-html-to-pdf';
 import tutorAxios from '../api/tutorAxios';
@@ -469,64 +470,55 @@ export default function TutorStudentsScreen() {
         `activity_points_${branchSlug}_${dateSlug}`;
 
       // ─────────────────────────────────────────────
-      // Generate PDF
-      // IMPORTANT:
-      // Use "Caches" instead of "Documents"
+      // Request storage permission on Android < 10
+      // ─────────────────────────────────────────────
+      if (Platform.OS === 'android' && Platform.Version < 29) {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+        );
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          throw new Error('Storage permission denied');
+        }
+      }
+
+      // ─────────────────────────────────────────────
+      // Generate PDF — save to Documents so it persists
       // ─────────────────────────────────────────────
       const pdf = await generatePDF({
         html,
         fileName,
-        directory: 'Caches',
+        directory: 'Documents',
         width: 595,
         height: 842,
       });
 
       if (!pdf.filePath) {
-        throw new Error('PDF generation failed');
+        throw new Error('PDF generation failed — no file path returned');
       }
-      
+
       console.log('PDF RESULT:', pdf);
 
       generatedFilePath = pdf.filePath;
-      
-      // ─────────────────────────────────────────────
-      // Share PDF
-      // ─────────────────────────────────────────────
-    console.log('PDF PATH:', generatedFilePath);
-
-    const sharePath = generatedFilePath.startsWith('file://')
-  ? generatedFilePath
-  : `file://${generatedFilePath}`;
-
-    console.log('SHARE PATH:', sharePath);
-
-    await RNShare.open({
-      url: sharePath,
-      type: 'application/pdf',
-      filename: `${fileName}.pdf`,
-      title: 'Share PDF',
-      failOnCancel: false,
-    });
 
       // ─────────────────────────────────────────────
-      // DELETE PDF AFTER SHARING
+      // Share PDF using built-in Share (no FileProvider needed)
       // ─────────────────────────────────────────────
-      try {
-        const exists = await RNFS.exists(
-          generatedFilePath,
-        );
+      const shareUrl = generatedFilePath.startsWith('file://')
+        ? generatedFilePath
+        : `file://${generatedFilePath}`;
 
-        if (exists) {
-          await RNFS.unlink(generatedFilePath);
+      console.log('SHARE PATH:', shareUrl);
 
-          console.log('Temporary PDF deleted');
-        }
-      } catch (deleteError) {
-        console.log(
-          'Could not delete temp PDF:',
-          deleteError,
-        );
-      }
+      await Share.share({
+        title: `${fileName}.pdf`,
+        url: shareUrl,   // iOS uses this
+        message: Platform.OS === 'android' ? shareUrl : `Activity Points Report — ${fileName}`,
+      });
+
+      Alert.alert(
+        'PDF Saved',
+        `File saved to:\nDocuments/${fileName}.pdf`,
+      );
     } catch (err: any) {
       console.error('PDF Export Error:', err);
 
@@ -535,19 +527,6 @@ export default function TutorStudentsScreen() {
         err?.message || 'Could not generate PDF',
       );
     } finally {
-      // Extra cleanup safety
-      try {
-        if (generatedFilePath) {
-          const exists = await RNFS.exists(
-            generatedFilePath,
-          );
-
-          if (exists) {
-            await RNFS.unlink(generatedFilePath);
-          }
-        }
-      } catch {}
-
       setPdfLoading(false);
     }
   };

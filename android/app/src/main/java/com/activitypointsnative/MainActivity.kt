@@ -1,13 +1,10 @@
 package com.activitypointsnative
 
-// import android.animation.AnimatorListenerAdapter
-// import android.animation.AnimatorSet
-// import android.animation.ObjectAnimator
 import android.content.Intent
-// import android.os.Build
+import android.os.Build
 import android.os.Bundle
-// import android.view.View
-// import android.view.animation.AnticipateInterpolator
+import android.view.View
+import android.view.WindowInsetsController
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -21,49 +18,37 @@ class MainActivity : ReactActivity() {
   override fun createReactActivityDelegate(): ReactActivityDelegate =
       DefaultReactActivityDelegate(this, mainComponentName, fabricEnabled)
 
-   override fun onCreate(savedInstanceState: Bundle?) {    
-    val splashScreen = installSplashScreen()
+  override fun onCreate(savedInstanceState: Bundle?) {
+    installSplashScreen()
     super.onCreate(null) // null prevents state restore crash on cold start
 
-   /* if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-      splashScreen.setOnExitAnimationListener { splashScreenViewProvider ->
-        val splashScreenView = splashScreenViewProvider.view
-        val iconView = splashScreenViewProvider.iconView
-
-        val scaleX = ObjectAnimator.ofFloat(iconView, View.SCALE_X, 1f, 0f)
-        val scaleY = ObjectAnimator.ofFloat(iconView, View.SCALE_Y, 1f, 0f)
-        val fadeIcon = ObjectAnimator.ofFloat(iconView, View.ALPHA, 1f, 0f)
-        val fadeBackground = ObjectAnimator.ofFloat(splashScreenView, View.ALPHA, 1f, 0f)
-
-        val iconAnimator = AnimatorSet().apply {
-          playTogether(scaleX, scaleY, fadeIcon)
-          duration = 400
-          interpolator = AnticipateInterpolator()
-        }
-
-        val bgAnimator = AnimatorSet().apply {
-          play(fadeBackground)
-          duration = 500
-          startDelay = 200
-        }
-
-        AnimatorSet().apply {
-          playTogether(iconAnimator, bgAnimator)
-          addListener(object : AnimatorListenerAdapter() {
-            override fun onAnimationEnd(animation: android.animation.Animator) {
-              splashScreenViewProvider.remove()
-            }
-          })
-          start()
-        }
-      }
+    // ── Status bar setup ──────────────────────────────────────────────────
+    // React Native's <StatusBar barStyle="dark-content" translucent={false} />
+    // handles icon colour at the JS layer.  However, we also need the window
+    // flag set at the native level so it takes effect before the JS bridge
+    // loads (avoids a flash of wrong-coloured icons on cold start).
+    //
+    // API 30+: WindowInsetsController  (modern API)
+    // API 23–29: SYSTEM_UI_FLAG_LIGHT_STATUS_BAR  (deprecated but still works)
+    // API < 23: status bar icons are always white — nothing we can do.
+    //
+    // Default here is LIGHT icons (suitable for the dark splash background).
+    // React Native will override once the JS bundle runs and <StatusBar>
+    // mounts, so this is only the pre-JS appearance.
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+      // API 30+
+      window.insetsController?.setSystemBarsAppearance(
+        0, // clear APPEARANCE_LIGHT_STATUS_BARS → white icons (for splash)
+        WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+      )
+    } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+      // API 23–29
+      @Suppress("DEPRECATION")
+      window.decorView.systemUiVisibility =
+        window.decorView.systemUiVisibility and
+          View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
     }
-
-    // ✅ FIX: When app is cold-started from a killed state via FCM notification,
-    // store the launching intent and re-deliver it once the activity is ready.
-    // Without this, the intent arrives before the JS bridge is initialised → crash.
-    intent?.let { handleIntent(it) }  */
-  } 
+  }
 
   override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)

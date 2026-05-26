@@ -1,7 +1,7 @@
 import React, {useState, useEffect, useMemo} from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  RefreshControl, Alert, ActivityIndicator, StatusBar, Linking,
+  RefreshControl, Alert, ActivityIndicator, Linking,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import axiosInstance from '../api/axiosInstance';
@@ -139,7 +139,6 @@ export default function CertificatesScreen() {
 
   return (
     <SafeAreaView style={[styles.safeArea, {backgroundColor: colors.bg}]}>
-      <StatusBar barStyle={colors.statusBar} backgroundColor={colors.bg} />
       <ScrollView
         style={[styles.container, {backgroundColor: colors.bg}]}
         contentContainerStyle={styles.content}

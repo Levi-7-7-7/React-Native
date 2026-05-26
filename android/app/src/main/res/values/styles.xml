@@ -1,9 +1,21 @@
 <resources>
 
     <!-- Base application theme. -->
+    <!--
+        Theme.AppCompat.DayNight.NoActionBar:
+          - Automatically switches between light/dark based on system setting
+          - NoActionBar: React Native owns the entire window
+          - windowTranslucentStatus=false: status bar occupies real space
+            (React Native StatusBar translucent=false works correctly)
+          - windowLightStatusBar is NOT set here — React Native's StatusBar
+            component controls it at runtime via barStyle prop.
+    -->
     <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">
-        <!-- Customize your theme here. -->
         <item name="android:editTextBackground">@drawable/rn_edit_text_material</item>
+        <!-- Ensure status bar is NOT translucent — RN owns it -->
+        <item name="android:windowTranslucentStatus">false</item>
+        <!-- Allow RN to draw behind the status bar if it ever needs to -->
+        <item name="android:fitsSystemWindows">false</item>
     </style>
 
     <!-- Splash screen theme using androidx.core:core-splashscreen -->

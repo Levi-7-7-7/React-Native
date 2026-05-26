@@ -1,7 +1,7 @@
 import React, {useEffect, useState, useMemo} from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  RefreshControl, ActivityIndicator, StatusBar,
+  RefreshControl, ActivityIndicator,
 } from 'react-native';
 import {ScrollView} from 'react-native-gesture-handler';
 import {SafeAreaView} from 'react-native-safe-area-context';
@@ -78,7 +78,6 @@ export default function DashboardScreen() {
 
   return (
     <SafeAreaView style={[styles.safeArea, {backgroundColor: colors.bg}]}>
-      <StatusBar barStyle={colors.statusBar} backgroundColor={colors.bg} />
       <ScrollView
         style={[styles.container, {backgroundColor: colors.bg}]}
         contentContainerStyle={styles.content}

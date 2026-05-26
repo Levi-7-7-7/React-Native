@@ -2,7 +2,7 @@ import React, {useState, useEffect, useRef, useCallback} from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ActivityIndicator, Alert, Platform, Modal,
-  FlatList, StatusBar, PermissionsAndroid,
+  FlatList, PermissionsAndroid,
   Animated,InteractionManager,
 } from 'react-native';
 import {ScrollView} from 'react-native-gesture-handler';
@@ -582,7 +582,6 @@ const pickFromCamera = async () => {
 
   return (
     <SafeAreaView style={[styles.safeArea, {backgroundColor: colors.bg}]}>
-      <StatusBar barStyle={colors.statusBar} backgroundColor={colors.bg} />
 
       <DropdownModal visible={catModalOpen} title="Select Category" items={catItems}
         selectedValue={categoryId} colors={colors}

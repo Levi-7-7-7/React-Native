@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   Animated,
-  StatusBar,
   useColorScheme,
 } from 'react-native';
 import LottieView from 'lottie-react-native';
@@ -94,10 +93,6 @@ export default function LoadingScreen() {
 
   return (
     <SafeAreaView style={[styles.root, {backgroundColor: bg}]}>
-      <StatusBar
-        barStyle={isDark ? 'light-content' : 'dark-content'}
-        backgroundColor={bg}
-      />
 
       <Animated.View
         style={[

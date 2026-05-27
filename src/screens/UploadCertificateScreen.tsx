@@ -21,7 +21,7 @@ import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityI
 import LottieView from 'lottie-react-native';
 import {tabEmitter} from '../utils/tabEvents';
 
-const MAX_FILE_SIZE_MB = 5;
+const MAX_FILE_SIZE_MB = 3;
 const RESIZE_WIDTH  = 1200;
 const RESIZE_HEIGHT = 1600;
 const RESIZE_QUALITY = 100;
@@ -377,7 +377,7 @@ export default function UploadCertificateScreen() {
     // We show an overlay via isResizing state instead.
     try {
       const resized = await ImageResizer.createResizedImage(
-        asset.uri, 900, 1200, 'JPEG', 60, 0, undefined, false,
+        asset.uri, 900, 1200, 'JPEG', 70, 0, undefined, false,
         {mode: 'contain', onlyScaleDown: true},
       );
       return {
@@ -417,13 +417,15 @@ export default function UploadCertificateScreen() {
   if (!ok) return;
   const result = await launchImageLibrary({
     mediaType: 'photo',
-    quality: 0.7,
+    quality: 1,
     selectionLimit: 1,
     presentationStyle: 'pageSheet',
   });
   if (result.didCancel || !result.assets?.length) return;
 
-  // Wait for picker close animation + JS interactions to settle
+  // Delay state changes until picker sheet animation fully completes
+  await new Promise(resolve => setTimeout(resolve, 400));
+
   InteractionManager.runAfterInteractions(async () => {
     setIsResizing(true);
     try {
@@ -440,12 +442,15 @@ const pickFromCamera = async () => {
   if (!ok) return;
   const result = await launchCamera({
     mediaType: 'photo',
-    quality: 0.7,
+    quality: 1,
     saveToPhotos: false,
     includeBase64: false,
     cameraType: 'back',
   });
   if (result.didCancel || !result.assets?.length) return;
+
+  // Same delay — camera dismissal animation needs to settle
+  await new Promise(resolve => setTimeout(resolve, 400));
 
   InteractionManager.runAfterInteractions(async () => {
     setIsResizing(true);
@@ -494,9 +499,11 @@ const pickFromCamera = async () => {
     : null;
   const hasLevels = currentSub?.levels?.length > 0;
 
-  const canSubmit = isOthers
-    ? othersDescription.trim() && uploadedFile && dateFrom && (!isDurationEvent || dateTo) && !uploading
-    : categoryId && subcategoryName && uploadedFile && dateFrom && (!isDurationEvent || dateTo) && !uploading;
+  const levelAndPrizeValid = !hasLevels || (levelSelected && prizeType);
+
+const canSubmit = isOthers
+  ? othersDescription.trim() && uploadedFile && dateFrom && (!isDurationEvent || dateTo) && !uploading
+  : categoryId && subcategoryName && levelAndPrizeValid && uploadedFile && dateFrom && (!isDurationEvent || dateTo) && !uploading;
 
   const handleSubmit = async () => {
     if (!dateFrom) {

@@ -20,8 +20,8 @@ const MESSAGES: {text: string; sub: string}[] = [
 ];
 
 // How long each message stays before fading to the next (ms)
-const MSG_INTERVAL = 4500;
-const FADE_DURATION = 400;
+const MSG_INTERVAL = 7000;
+const FADE_DURATION = 500;
 
 export default function LoadingScreen() {
   const scheme = useColorScheme();
@@ -129,7 +129,7 @@ export default function LoadingScreen() {
 
         {/* App name */}
         <Text style={[styles.appName, {color: primary}]}>Activity Points</Text>
-        <Text style={[styles.appTagline, {color: textSub}]}>Developed by LPT</Text>
+        <Text style={[styles.appTagline, {color: textSub}]}>Management System</Text>
 
         {/* Divider */}
         <View style={[styles.divider, {backgroundColor: dotColor}]} />

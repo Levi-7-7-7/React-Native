@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { generatePDF } from 'react-native-html-to-pdf';
+import {useNavigation} from '@react-navigation/native';
 import tutorAxios from '../api/tutorAxios';
 import {useTheme} from '../theme';
 import {calcCappedPoints, passThreshold} from '../utils/calcPoints';
@@ -494,6 +495,7 @@ function buildPdfHtml(
 
 export default function TutorStudentsScreen() {
   const {colors} = useTheme();
+  const navigation = useNavigation<any>();
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -507,8 +509,6 @@ export default function TutorStudentsScreen() {
   const [filterBatch, setFilterBatch] = useState('');
   const [filterBranch, setFilterBranch] = useState('');
   const [filterModalVisible, setFilterModalVisible] = useState(false);
-
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
 
   const sortBadgeAnim = useRef(new Animated.Value(1)).current;
 
@@ -684,7 +684,7 @@ export default function TutorStudentsScreen() {
     return (
       <TouchableOpacity
         style={[styles.card, {backgroundColor: colors.card, borderColor: colors.border}]}
-        onPress={() => setSelectedStudent(item)}
+        onPress={() => navigation.navigate('TutorStudentDetails', {student: item})}
         activeOpacity={0.75}>
         <View style={styles.cardTop}>
           <View style={styles.avatarSmall}>
@@ -941,106 +941,6 @@ export default function TutorStudentsScreen() {
           </View>
         </TouchableOpacity>
       </Modal>
-
-      {/* ── Student Profile View Modal ── */}
-      <Modal
-        visible={selectedStudent !== null}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setSelectedStudent(null)}>
-        <TouchableOpacity
-          style={styles.modalBackdrop}
-          activeOpacity={1}
-          onPress={() => setSelectedStudent(null)}>
-          <View
-            style={[styles.profileSheet, {backgroundColor: colors.card}]}
-            onStartShouldSetResponder={() => true}>
-            {/* Handle */}
-            <View style={[styles.sheetHandle, {backgroundColor: colors.border}]} />
-
-            {selectedStudent && (() => {
-              const batchName  = getBatchName(selectedStudent.batch);
-              const branchName = getBranchName(selectedStudent.branch);
-              const threshold  = passThreshold(selectedStudent.isLateralEntry);
-              const isPassing  = (selectedStudent.totalPoints ?? 0) >= threshold;
-              const initials   = selectedStudent.name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?';
-
-              return (
-                <>
-                  {/* Avatar */}
-                  <View style={styles.profileAvatarWrap}>
-                    {selectedStudent.profilePhoto ? (
-                      <Image
-                        source={{uri: selectedStudent.profilePhoto}}
-                        style={styles.profileAvatar}
-                      />
-                    ) : (
-                      <View style={[styles.profileAvatarFallback, {backgroundColor: colors.primary}]}>
-                        <Text style={styles.profileAvatarInitials}>{initials}</Text>
-                      </View>
-                    )}
-                    {isPassing && (
-                      <View style={styles.profileTrophyBadge}>
-                        <Icon name="trophy" size={14} color="#854d0e" />
-                      </View>
-                    )}
-                  </View>
-
-                  {/* Name & Reg */}
-                  <Text style={[styles.profileName, {color: colors.text}]}>{selectedStudent.name}</Text>
-                  <Text style={[styles.profileReg, {color: colors.textMuted}]}>{selectedStudent.registerNumber}</Text>
-                  {selectedStudent.email ? (
-                    <Text style={[styles.profileEmail, {color: colors.textMuted}]}>{selectedStudent.email}</Text>
-                  ) : null}
-
-                  {/* Stats row */}
-                  <View style={[styles.profileStatsRow, {borderColor: colors.border}]}>
-                    <View style={styles.profileStat}>
-                      <Text style={[styles.profileStatVal, {color: colors.primary}]}>{selectedStudent.totalPoints ?? 0}</Text>
-                      <Text style={[styles.profileStatLabel, {color: colors.textMuted}]}>Points</Text>
-                    </View>
-                    <View style={[styles.profileStatDivider, {backgroundColor: colors.border}]} />
-                    <View style={styles.profileStat}>
-                      <Text style={[styles.profileStatVal, {color: colors.text}]}>{batchName || '—'}</Text>
-                      <Text style={[styles.profileStatLabel, {color: colors.textMuted}]}>Batch</Text>
-                    </View>
-                    <View style={[styles.profileStatDivider, {backgroundColor: colors.border}]} />
-                    <View style={styles.profileStat}>
-                      <Text style={[styles.profileStatVal, {color: colors.text}]}>{branchName || '—'}</Text>
-                      <Text style={[styles.profileStatLabel, {color: colors.textMuted}]}>Branch</Text>
-                    </View>
-                  </View>
-
-                  {/* Badges */}
-                  <View style={styles.profileBadgesRow}>
-                    <View style={[styles.profileStatusBadge, {backgroundColor: isPassing ? '#dcfce7' : '#fef2f2'}]}>
-                      <Icon
-                        name={isPassing ? 'check-circle' : 'clock-alert-outline'}
-                        size={14}
-                        color={isPassing ? '#16a34a' : '#dc2626'}
-                      />
-                      <Text style={[styles.profileStatusText, {color: isPassing ? '#16a34a' : '#dc2626'}]}>
-                        {isPassing ? 'Passing' : 'Needs More Points'}
-                      </Text>
-                    </View>
-                    {selectedStudent.isLateralEntry && (
-                      <View style={[styles.lateralBadge, {marginLeft: 0}]}>
-                        <Text style={styles.lateralText}>Lateral Entry</Text>
-                      </View>
-                    )}
-                  </View>
-                </>
-              );
-            })()}
-
-            <TouchableOpacity
-              style={[styles.sheetCloseBtn, {backgroundColor: colors.primaryMuted, marginTop: 20}]}
-              onPress={() => setSelectedStudent(null)}>
-              <Text style={[styles.sheetCloseBtnText, {color: colors.primary}]}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
     </View>
   );
 }
@@ -1111,23 +1011,4 @@ const styles = StyleSheet.create({
   chipGroup: { flexDirection: 'row', gap: 8, paddingBottom: 4 },
   chip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
   chipText: { fontSize: 13, fontWeight: '600' },
-
-  // Student profile modal
-  profileSheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 36, alignItems: 'center', shadowColor: '#000', shadowOffset: {width: 0, height: -4}, shadowOpacity: 0.12, shadowRadius: 16, elevation: 12 },
-  profileAvatarWrap: { position: 'relative', marginBottom: 16, marginTop: 8 },
-  profileAvatar: { width: 90, height: 90, borderRadius: 45 },
-  profileAvatarFallback: { width: 90, height: 90, borderRadius: 45, alignItems: 'center', justifyContent: 'center' },
-  profileAvatarInitials: { color: '#fff', fontSize: 32, fontWeight: '800' },
-  profileTrophyBadge: { position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderRadius: 14, backgroundColor: '#fef9c3', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff' },
-  profileName: { fontSize: 20, fontWeight: '800', textAlign: 'center', marginBottom: 4 },
-  profileReg: { fontSize: 13, fontWeight: '600', textAlign: 'center', marginBottom: 2 },
-  profileEmail: { fontSize: 12, textAlign: 'center', marginBottom: 20 },
-  profileStatsRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 8, marginBottom: 16, width: '100%' },
-  profileStat: { flex: 1, alignItems: 'center' },
-  profileStatVal: { fontSize: 16, fontWeight: '800', marginBottom: 2 },
-  profileStatLabel: { fontSize: 11, fontWeight: '500' },
-  profileStatDivider: { width: 1, height: 36 },
-  profileBadgesRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 4 },
-  profileStatusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
-  profileStatusText: { fontSize: 12, fontWeight: '700' },
 });

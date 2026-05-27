@@ -19,6 +19,7 @@ import StudentTabNavigator from './StudentTabNavigator';
 import TutorTabNavigator from './TutorTabNavigator';
 import ProfileScreen from '../screens/ProfileScreen';
 import TutorProfileScreen from '../screens/TutorProfileScreen';
+import TutorStudentDetailsScreen from '../screens/TutorStudentDetailsScreen';
 
 import LoadingScreen from '../screens/LoadingScreen';
 
@@ -53,8 +54,9 @@ function TutorStackNavigator() {
         headerShown: false,
         animation: 'slide_from_right',
       }}>
-      <StudentStack.Screen name="TutorTabs"    component={TutorTabNavigator} />
-      <StudentStack.Screen name="TutorProfile" component={TutorProfileScreen} />
+      <StudentStack.Screen name="TutorTabs"           component={TutorTabNavigator} />
+      <StudentStack.Screen name="TutorProfile"        component={TutorProfileScreen} />
+      <StudentStack.Screen name="TutorStudentDetails" component={TutorStudentDetailsScreen} />
     </StudentStack.Navigator>
   );
 }

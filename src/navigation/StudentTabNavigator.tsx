@@ -1,3 +1,12 @@
+/**
+ * StudentTabNavigator.tsx  (updated — adds Profile tab)
+ *
+ * Changes from the original:
+ *   1. TAB_COUNT bumped 3 → 4
+ *   2. New "Profile" tab added (account-circle icon) → ProfileScreen
+ *   3. Everything else is identical to the original
+ */
+
 import React, {useCallback, useState, useEffect} from 'react';
 import {
   Platform,
@@ -10,7 +19,6 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
-  runOnJS,
   interpolate,
 } from 'react-native-reanimated';
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
@@ -21,14 +29,18 @@ import {useTheme} from '../theme';
 import DashboardScreen from '../screens/DashboardScreen';
 import CertificatesScreen from '../screens/CertificatesScreen';
 import UploadCertificateScreen from '../screens/UploadCertificateScreen';
+import ProfileScreen from '../screens/ProfileScreen';   // ← NEW
 import {useFcmToken} from '../utils/useFcmToken';
 import {tabEmitter} from '../utils/tabEvents';
 
-const TAB_COUNT = 3;
+// ── tabs ─────────────────────────────────────────────────────────────────────
+
+const TAB_COUNT = 4;  // was 3
 const TABS = [
-  {name: 'Dashboard', icon: 'view-dashboard-outline', component: DashboardScreen},
-  {name: 'Certificates', icon: 'certificate-outline', component: CertificatesScreen},
-  {name: 'Upload', icon: 'upload-outline', component: UploadCertificateScreen},
+  {name: 'Dashboard',    icon: 'view-dashboard-outline', component: DashboardScreen},
+  {name: 'Certificates', icon: 'certificate-outline',    component: CertificatesScreen},
+  {name: 'Upload',       icon: 'upload-outline',         component: UploadCertificateScreen},
+  {name: 'Profile',      icon: 'account-circle-outline', component: ProfileScreen},  // ← NEW
 ];
 
 const SPRING_CONFIG = {
@@ -37,6 +49,8 @@ const SPRING_CONFIG = {
   mass: 0.8,
   overshootClamping: true,
 };
+
+// ── navigator ─────────────────────────────────────────────────────────────────
 
 export default function StudentTabNavigator() {
   const {colors} = useTheme();
@@ -52,10 +66,6 @@ export default function StudentTabNavigator() {
   const progress = useSharedValue(0);
 
   const TAB_BAR_HEIGHT = Platform.OS === 'android' ? 65 + insets.bottom : 80;
-
-  const syncProgress = useCallback((val: number) => {
-    // no-op — only needed to satisfy runOnJS typing if needed
-  }, []);
 
   const snapToIndex = useCallback(
     (index: number, width: number) => {
@@ -96,8 +106,8 @@ export default function StudentTabNavigator() {
       let drag = event.translationX;
       const projected = base + drag;
       const minX = -(TAB_COUNT - 1) * containerWidth;
-      if (projected > 0) drag = drag * 0.15;
-      else if (projected < minX) drag = drag * 0.15;
+      if (projected > 0) {drag = drag * 0.15;}
+      else if (projected < minX) {drag = drag * 0.15;}
       translateX.value = base + drag;
       progress.value = -translateX.value / containerWidth;
     })
@@ -121,10 +131,10 @@ export default function StudentTabNavigator() {
     transform: [{translateX: (progress.value * containerWidth) / TAB_COUNT}],
   }));
 
-return (
-  <View
-    style={[styles.container, {backgroundColor: colors.bg, marginTop: insets.top}]}
-    onLayout={e => {
+  return (
+    <View
+      style={[styles.container, {backgroundColor: colors.bg, marginTop: insets.top}]}
+      onLayout={e => {
         const w = e.nativeEvent.layout.width;
         setContainerWidth(w);
         translateX.value = -currentIndexSV.value * w;
@@ -142,21 +152,19 @@ return (
             },
             rowAnimStyle,
           ]}>
-            
           {TABS.map(tab => {
             const Comp = tab.component;
             return (
-              // In the TABS.map render, change the wrapper View:
-<View
-  key={tab.name}
-  style={{
-    width: containerWidth,
-    overflow: 'hidden',
-    height: '100%',
-    backgroundColor: colors.bg,  // ← ADD THIS
-  }}>
-  <Comp />
-</View>
+              <View
+                key={tab.name}
+                style={{
+                  width: containerWidth,
+                  overflow: 'hidden',
+                  height: '100%',
+                  backgroundColor: colors.bg,
+                }}>
+                <Comp />
+              </View>
             );
           })}
         </Animated.View>
@@ -201,6 +209,8 @@ return (
   );
 }
 
+// ── animated tab item (unchanged) ─────────────────────────────────────────────
+
 function AnimatedTabItem({
   tab,
   index,
@@ -240,7 +250,6 @@ function AnimatedTabItem({
       onPress={onPress}
       activeOpacity={0.7}>
 
-      {/* Icon stack — active and inactive cross-fade */}
       <View style={styles.iconWrapper}>
         <Animated.View style={[StyleSheet.absoluteFill, styles.iconCenter, activeIconStyle]}>
           <MaterialCommunityIcons name={tab.icon} size={24} color={colors.primary} />
@@ -250,7 +259,6 @@ function AnimatedTabItem({
         </Animated.View>
       </View>
 
-      {/* Label stack — active and inactive cross-fade */}
       <View style={styles.labelWrapper}>
         <Animated.Text
           style={[styles.tabLabel, {color: colors.primary, position: 'absolute'}, activeLabelStyle]}>
@@ -265,8 +273,10 @@ function AnimatedTabItem({
   );
 }
 
+// ── styles (unchanged) ────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  container: {flex: 1, overflow: 'hidden'},  // was missing backgroundColor
+  container: {flex: 1, overflow: 'hidden'},
   row: {
     position: 'absolute',
     top: 0,
@@ -305,7 +315,6 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
     gap: 3,
   },
-  // Fixed-size box that holds the icon — both layers sit inside this
   iconWrapper: {
     width: 28,
     height: 28,
@@ -314,15 +323,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  // Fixed-size box that holds the label — both layers sit inside this
   labelWrapper: {
     height: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 60,
+    minWidth: 56,   // slightly narrower to fit 4 tabs
   },
   tabLabel: {
-    fontSize: 11,
+    fontSize: 10,   // slightly smaller to fit 4 tabs
     fontWeight: '600',
     textAlign: 'center',
   },

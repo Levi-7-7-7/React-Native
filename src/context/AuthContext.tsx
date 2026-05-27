@@ -4,7 +4,7 @@
  *
  * Drop this in place of src/context/AuthContext.tsx
  */
-import React, {createContext, useState, useEffect, useContext} from 'react';
+import React, {createContext, useState, useEffect, useContext, useCallback} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axiosInstance from '../api/axiosInstance';
 import tutorAxios from '../api/tutorAxios';
@@ -87,7 +87,7 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({
   init();
 }, []);
 
-  const clearAll = async () => {
+  const clearAll = useCallback(async () => {
     await AsyncStorage.multiRemove([
       'token',
       'tutorToken',
@@ -97,13 +97,13 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({
       'tutorName',
       'userData',
     ]);
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     await clearAll();
     setUser(null);
     setRole(null);
-  };
+  }, [clearAll]);
 
   return (
     <AuthContext.Provider value={{user, setUser, role, setRole, loading, logout}}>

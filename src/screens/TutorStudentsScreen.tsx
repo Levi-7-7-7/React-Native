@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { generatePDF } from 'react-native-html-to-pdf';
+import {useNavigation} from '@react-navigation/native';
 import tutorAxios from '../api/tutorAxios';
 import {useTheme} from '../theme';
 import {calcCappedPoints, passThreshold} from '../utils/calcPoints';
@@ -75,6 +76,7 @@ interface Student {
   totalPoints: number;
   isLateralEntry?: boolean;
   createdAt?: string;
+  profilePhoto?: string | null;
 }
 
 interface Certificate {
@@ -493,6 +495,7 @@ function buildPdfHtml(
 
 export default function TutorStudentsScreen() {
   const {colors} = useTheme();
+  const navigation = useNavigation<any>();
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -676,14 +679,20 @@ export default function TutorStudentsScreen() {
     const branchName = getBranchName(item.branch);
     const threshold  = passThreshold(item.isLateralEntry);
     const isPassing  = (item.totalPoints ?? 0) >= threshold;
+    const initials   = item.name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?';
 
     return (
-      <View style={[styles.card, {backgroundColor: colors.card, borderColor: colors.border}]}>
+      <TouchableOpacity
+        style={[styles.card, {backgroundColor: colors.card, borderColor: colors.border}]}
+        onPress={() => navigation.navigate('TutorStudentDetails', {student: item})}
+        activeOpacity={0.75}>
         <View style={styles.cardTop}>
           <View style={styles.avatarSmall}>
-            <Text style={styles.avatarSmallText}>
-              {item.name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?'}
-            </Text>
+            {item.profilePhoto ? (
+              <Image source={{uri: item.profilePhoto}} style={styles.avatarSmallImage} />
+            ) : (
+              <Text style={styles.avatarSmallText}>{initials}</Text>
+            )}
           </View>
           <View style={styles.cardInfo}>
             <Text style={[styles.studentName, {color: colors.text}]}>{item.name}</Text>
@@ -717,7 +726,7 @@ export default function TutorStudentsScreen() {
             </View>
           )}
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -956,7 +965,8 @@ const styles = StyleSheet.create({
   list: { paddingBottom: 24 },
   card: { borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 12 },
   cardTop: { flexDirection: 'row', alignItems: 'center' },
-  avatarSmall: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#f1f5f9', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  avatarSmall: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#f1f5f9', justifyContent: 'center', alignItems: 'center', marginRight: 12, overflow: 'hidden' },
+  avatarSmallImage: { width: 38, height: 38, borderRadius: 19 },
   avatarSmallText: { fontSize: 13, fontWeight: '700', color: '#475569' },
   cardInfo: { flex: 1 },
   studentName: { fontSize: 15, fontWeight: '700', marginBottom: 2 },

@@ -137,9 +137,9 @@ export default function CertificatesScreen() {
     );
   };
 
-  return (
-    <SafeAreaView style={[styles.safeArea, {backgroundColor: colors.bg}]}>
-      <ScrollView
+return (
+  <View style={[styles.safeArea, {backgroundColor: colors.bg}]}>
+    <ScrollView
         style={[styles.container, {backgroundColor: colors.bg}]}
         contentContainerStyle={styles.content}
         refreshControl={
@@ -341,7 +341,7 @@ export default function CertificatesScreen() {
           })
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

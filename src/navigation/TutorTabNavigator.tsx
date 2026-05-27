@@ -6,7 +6,7 @@
  *   - Swipeable content area (same gesture pattern as StudentTabNavigator)
  *   - Bottom tab bar: Students | Upload CSV | Pending | Approved
  */
-import React, {useCallback, useState, useEffect} from 'react';
+import React, {useCallback, useState, useEffect, useRef} from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,9 @@ import {
   Platform,
   Dimensions,
   Alert,
+  Image,
+  Modal,
+  Animated as RNAnimated,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -24,6 +27,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
@@ -34,6 +38,7 @@ import TutorUploadCSVScreen from '../screens/TutorUploadCSVScreen';
 import TutorPendingScreen from '../screens/TutorPendingScreen';
 import TutorApprovedScreen from '../screens/TutorApprovedScreen';
 import {useTutorFcmToken} from '../utils/useTutorFcmToken';
+import tutorAxios from '../api/tutorAxios';
 
 const TAB_COUNT = 4;
 const TABS = [
@@ -53,11 +58,15 @@ const SPRING_CONFIG = {
 export default function TutorTabNavigator() {
   const {colors} = useTheme();
   const {logout} = useAuth();
+  const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const [tutorName, setTutorName] = useState('Tutor');
+  const [tutorPhoto, setTutorPhoto] = useState<string | null>(null);
   const [containerWidth, setContainerWidth] = useState(
     Dimensions.get('window').width,
   );
+  const [menuVisible, setMenuVisible] = useState(false);
+  const menuAnim = useRef(new RNAnimated.Value(0)).current;
 
   // Badge count for the Pending tab — incremented when a new certificate
   // notification arrives; cleared when the tutor opens the Pending tab.
@@ -78,11 +87,26 @@ export default function TutorTabNavigator() {
 
   const TAB_BAR_HEIGHT = Platform.OS === 'android' ? 65 + insets.bottom : 80;
 
-  useEffect(() => {
-    AsyncStorage.getItem('tutorName').then(n => {
+  // Fetch full profile on mount and every time we return from the profile screen
+  const fetchProfile = useCallback(async () => {
+    try {
+      const res = await tutorAxios.get('/tutors/me');
+      const data = res.data;
+      if (data?.name)  { setTutorName(data.name); await AsyncStorage.setItem('tutorName', data.name); }
+      setTutorPhoto(data?.profilePhoto ?? null);
+    } catch {
+      // fallback: at least load name from storage
+      const n = await AsyncStorage.getItem('tutorName');
       if (n) setTutorName(n);
-    });
+    }
   }, []);
+
+  useEffect(() => { fetchProfile(); }, [fetchProfile]);
+
+  // Refresh photo when navigating back from TutorProfileScreen
+  useFocusEffect(
+    useCallback(() => { fetchProfile(); }, [fetchProfile]),
+  );
 
   const avatarInitials = tutorName
     .split(' ')
@@ -91,15 +115,41 @@ export default function TutorTabNavigator() {
     .toUpperCase()
     .slice(0, 2);
 
+  const showMenu = () => {
+    setMenuVisible(true);
+    RNAnimated.spring(menuAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      damping: 20,
+      stiffness: 300,
+    }).start();
+  };
+
+  const hideMenu = () => {
+    RNAnimated.timing(menuAnim, {
+      toValue: 0,
+      duration: 150,
+      useNativeDriver: true,
+    }).start(() => setMenuVisible(false));
+  };
+
   const handleLogout = () => {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
-      {text: 'Cancel', style: 'cancel'},
-      {
-        text: 'Logout',
-        style: 'destructive',
-        onPress: () => logout(),
-      },
-    ]);
+    hideMenu();
+    setTimeout(() => {
+      Alert.alert('Logout', 'Are you sure you want to logout?', [
+        {text: 'Cancel', style: 'cancel'},
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: () => logout(),
+        },
+      ]);
+    }, 200);
+  };
+
+  const handleViewProfile = () => {
+    hideMenu();
+    setTimeout(() => navigation.navigate('TutorProfile'), 200);
   };
 
   const snapToIndex = useCallback(
@@ -171,9 +221,19 @@ export default function TutorTabNavigator() {
           },
         ]}>
         <View style={styles.headerLeft}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{avatarInitials}</Text>
-          </View>
+          <TouchableOpacity
+            style={styles.avatar}
+            onPress={() => navigation.navigate('TutorProfile')}
+            activeOpacity={0.8}>
+            {tutorPhoto ? (
+              <Image
+                source={{uri: tutorPhoto}}
+                style={styles.avatarImage}
+              />
+            ) : (
+              <Text style={styles.avatarText}>{avatarInitials}</Text>
+            )}
+          </TouchableOpacity>
           <View>
             <Text style={[styles.welcomeText, {color: colors.primary}]}>
               Welcome, {tutorName}!
@@ -183,14 +243,67 @@ export default function TutorTabNavigator() {
             </Text>
           </View>
         </View>
+
+        {/* ── Three-dot menu button ── */}
         <TouchableOpacity
-          style={styles.logoutBtn}
-          onPress={handleLogout}
-          activeOpacity={0.8}>
-          <Icon name="logout" size={18} color="#fff" />
-          <Text style={styles.logoutText}>Logout</Text>
+          style={styles.menuBtn}
+          onPress={showMenu}
+          activeOpacity={0.7}>
+          <Icon name="dots-vertical" size={24} color={colors.text} />
         </TouchableOpacity>
       </View>
+
+      {/* ── Dropdown menu modal ── */}
+      <Modal
+        visible={menuVisible}
+        transparent
+        animationType="none"
+        onRequestClose={hideMenu}>
+        <TouchableOpacity
+          style={styles.menuBackdrop}
+          activeOpacity={1}
+          onPress={hideMenu}>
+          <RNAnimated.View
+            style={[
+              styles.menuDropdown,
+              {
+                backgroundColor: colors.card,
+                shadowColor: '#000',
+                opacity: menuAnim,
+                transform: [
+                  {
+                    scale: menuAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.92, 1],
+                    }),
+                  },
+                  {
+                    translateY: menuAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-8, 0],
+                    }),
+                  },
+                ],
+              },
+            ]}
+            onStartShouldSetResponder={() => true}>
+            <TouchableOpacity
+              style={[styles.menuItem, {borderBottomColor: colors.border}]}
+              onPress={handleViewProfile}
+              activeOpacity={0.7}>
+              <Icon name="account-circle-outline" size={20} color={colors.primary} />
+              <Text style={[styles.menuItemText, {color: colors.text}]}>View Profile</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={handleLogout}
+              activeOpacity={0.7}>
+              <Icon name="logout" size={20} color="#ef4444" />
+              <Text style={[styles.menuItemText, {color: '#ef4444'}]}>Logout</Text>
+            </TouchableOpacity>
+          </RNAnimated.View>
+        </TouchableOpacity>
+      </Modal>
 
       {/* ── Swipeable content ── */}
       <View
@@ -370,20 +483,47 @@ const styles = StyleSheet.create({
     backgroundColor: '#2563eb',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
   },
   avatarText: {color: '#fff', fontWeight: '700', fontSize: 15},
   welcomeText: {fontSize: 15, fontWeight: '700'},
   welcomeSub: {fontSize: 11, marginTop: 1},
-  logoutBtn: {
+  menuBtn: {
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 19,
+  },
+  menuBackdrop: {
+    flex: 1,
+  },
+  menuDropdown: {
+    position: 'absolute',
+    top: 68,
+    right: 12,
+    borderRadius: 12,
+    minWidth: 180,
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+    overflow: 'hidden',
+  },
+  menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ef4444',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 10,
-    gap: 5,
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
   },
-  logoutText: {color: '#fff', fontWeight: '600', fontSize: 13},
+  menuItemText: {fontSize: 14, fontWeight: '600'},
   content: {flex: 1, overflow: 'hidden'},
   row: {
     position: 'absolute',

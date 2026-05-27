@@ -167,12 +167,14 @@ function buildPdfHtml(
                   const nameCell = certName;
                     // ? `<a href="${cert.fileUrl}" style="color:#2563eb;text-decoration:underline;">${certName}</a>`
                     // : certName;
-                  return `
-              <tr style="background:${ci % 2 === 0 ? '#f5f9ff' : '#fff'}">
-                <td style="text-align:center">${ci + 1}</td>
-                <td>${nameCell}</td>
-                <td style="text-align:center;font-weight:700;color:#1e3a8a">${cert.pointsAwarded ?? 0}</td>
-              </tr>`;
+             return `
+<tr>
+  <td style="text-align:center">${ci + 1}</td>
+  <td>${nameCell}</td>
+  <td style="text-align:center;font-weight:700;color:#1e3a8a">
+    ${cert.pointsAwarded ?? 0}
+  </td>
+</tr>`;
                 },
               )
               .join('');
@@ -196,7 +198,7 @@ function buildPdfHtml(
         <table class="cert-table">
           <thead>
             <tr>
-              <th style="width:30px">#</th>
+              <th style="width:30px">SI:NO</th>
               <th>Certificate Name</th>
               <th style="width:50px">Points</th>
             </tr>
@@ -210,9 +212,9 @@ function buildPdfHtml(
   ? `<img 
        src="data:image/png;base64,${logoBase64}" 
        style="
-         width:140px;
+         width:110px;
          height:auto;
-         border-radius:6px;
+         border-radius:2px;
        " 
      />`
   : `<div class="header-logo">MTI</div>`;
@@ -222,9 +224,17 @@ function buildPdfHtml(
 <head>
 <meta charset="utf-8"/>
 <style>
+@page {
+  margin: 20px 18px 30px 18px;
+}
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: Helvetica, Arial, sans-serif; font-size: 11px; color: #111; background: #fff; }
-  .page { padding: 20px 18px 30px; }
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  color: #111827;
+}
+.page {
+  padding: 0;
+}
 
   /* Header */
   .header { display: table; width: 100%; padding-bottom: 10px; border-bottom: 2px solid #0f2864; margin-bottom: 6px; }
@@ -241,28 +251,76 @@ function buildPdfHtml(
   .inst-sub  { font-size: 8px; color: #555; margin-top: 2px; }
 
   /* Title band */
-  .title-band { background: #0f2864; color: #fff; text-align: center; padding: 7px; font-size: 11px; font-weight: 700; border-radius: 3px; margin: 8px 0 14px; letter-spacing: 0.5px; }
+.title-band {
+  background: #0f2864;
+  color: white;
+  text-align: center;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 4px;
+  margin: 10px 0 14px;
+  letter-spacing: 0.5px;
+}
 
   /* Student block */
-  .student-block { margin-bottom: 16px; page-break-inside: avoid; }
-  .student-header { display: table; width: 100%; background: #f2f6ff; border: 1px solid #b9cdf5; border-radius: 5px; padding: 10px 12px; margin-bottom: 4px; }
+.student-block {
+  page-break-inside: avoid;
+}
+.student-header {
+  display: table;
+  width: 100%;
+  background: #f8fbff;
+  border: 1px solid #d8e3f5;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 4px;
+}
   .student-num-cell { display: table-cell; vertical-align: top; width: 40px; padding-right: 12px; }
   .student-num { width: 28px; height: 28px; border-radius: 50%; background: #1e3a8a; color: #fff; text-align: center; line-height: 28px; font-size: 11px; font-weight: 700; margin-top: 2px; }
   .student-info { display: table-cell; vertical-align: top; }
-  .student-name { font-size: 13px; font-weight: 700; color: #0a1e5a; }
+.student-name {
+  font-size: 12px;
+  font-weight: 700;
+}
   .student-meta { font-size: 9px; color: #555; margin-top: 3px; }
   .lateral-badge { display: inline-block; background: #fef9c3; color: #854d0e; font-size: 8px; font-weight: 700; padding: 2px 6px; border-radius: 10px; margin-top: 4px; }
-  .points-col { display: table-cell; vertical-align: top; text-align: right; width: 70px; padding-left: 12px; }
-  .points-value { font-size: 26px; font-weight: 700; line-height: 1; }
+  .points-col {
+  display: table-cell;
+  vertical-align: top;
+  text-align: right;
+  width: 90px;
+  padding-left: 12px;
+}
+  .points-value {
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1;
+}
   .points-label { font-size: 7px; color: #888; text-align: center; margin-top: 2px; }
-  .pass-badge { display: inline-block; padding: 3px 10px; border-radius: 4px; font-size: 9px; font-weight: 700; margin-top: 5px; }
+  .pass-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  margin-top: 3px;
+  padding: 0;
+  background: transparent !important;
+}
 
   /* Certificate table */
   .cert-table { width: 100%; border-collapse: collapse; font-size: 9px; }
-  .cert-table th { background: #1e3a8a; color: #fff; padding: 5px 8px; text-align: left; font-weight: 700; }
-  .cert-table td { padding: 5px 8px; border-bottom: 1px solid #e5e7eb; }
+  .cert-table th {
+  background: #eef2f7;
+  color: #111;
+  font-weight: 700;
+  border-bottom: 1px solid #cfd8e3;
+}
+  .cert-table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid #edf1f5;
+}
   .cert-table td:nth-child(2) { width: auto; }
-  // .cert-table td a { color: #2563eb; text-decoration: underline; }
+/* .cert-table td a { color: #2563eb; text-decoration: underline; } */
 
   /* Footer — block, not fixed */
   .footer { display: table; width: 100%; font-size: 8px; color: #aaa; border-top: 1px solid #e5e7eb; padding: 5px 0; margin-top: 12px; }
@@ -312,8 +370,8 @@ export default function TutorStudentsScreen() {
   const [pdfLoading, setPdfLoading] = useState(false);
 
   // Sorting
-  const [sortKey, setSortKey] = useState<SortKey>('recentlyAdded');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [sortKey, setSortKey] = useState<SortKey>('registerNumber');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [sortModalVisible, setSortModalVisible] = useState(false);
 
   // Filtering

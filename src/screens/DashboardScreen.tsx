@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import {ScrollView} from 'react-native-gesture-handler';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 import axiosInstance from '../api/axiosInstance';
@@ -20,8 +19,6 @@ import {tabEmitter} from '../utils/tabEvents';
 export default function DashboardScreen() {
   const {user, setUser, logout} = useAuth();
   const {colors, isDark} = useTheme();
-
-  const insets = useSafeAreaInsets();
 
   const [certificates, setCertificates] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
@@ -49,7 +46,8 @@ export default function DashboardScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [logout, setUser]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [logout]);
 
   useEffect(() => {
     fetchData();
@@ -127,7 +125,6 @@ export default function DashboardScreen() {
         contentContainerStyle={[
           styles.content,
           {
-            paddingTop: insets.top + 12,
             backgroundColor: colors.bg,
           },
         ]}

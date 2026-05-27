@@ -19,7 +19,6 @@ import {useFocusEffect} from '@react-navigation/native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import LottieView from 'lottie-react-native';
 import {tabEmitter} from '../utils/tabEvents';
-import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 
 const MAX_FILE_SIZE_MB = 3;
 const RESIZE_WIDTH  = 1200;
@@ -154,7 +153,6 @@ function DatePickerField({
 // ← No navigation prop
 export default function UploadCertificateScreen() {
   const {colors} = useTheme();
-  const insets = useSafeAreaInsets();
   const [categories, setCategories] = useState<any[]>([]);
   const [categoryId, setCategoryId] = useState('');
   const [subcategories, setSubcategories] = useState<any[]>([]);
@@ -554,7 +552,7 @@ const canSubmit = isOthers
 
   if (submitted) {
     return (
-      <SafeAreaView style={[styles.safeArea, {backgroundColor: colors.successBg}]}>
+      <View style={[styles.safeArea, {backgroundColor: colors.successBg}]}>
         <Animated.View
           style={[
             styles.successContainer,
@@ -573,7 +571,7 @@ const canSubmit = isOthers
             Your certificate has been submitted and is pending approval by your tutor.
           </Text>
         </Animated.View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -647,7 +645,7 @@ return (
 
       <ScrollView
         style={[styles.container, {backgroundColor: colors.bg}]}
-        contentContainerStyle={[styles.content, {paddingTop: insets.top + 12}]}
+        contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled">
         <Text style={[styles.pageTitle, {color: colors.primary}]}>Upload Certificate</Text>
 

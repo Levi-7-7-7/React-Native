@@ -123,7 +123,7 @@ export default function StudentTabNavigator() {
 
 return (
   <View
-    style={[styles.container, {backgroundColor: colors.bg}]}
+    style={[styles.container, {backgroundColor: colors.bg, marginTop: insets.top}]}
     onLayout={e => {
         const w = e.nativeEvent.layout.width;
         setContainerWidth(w);

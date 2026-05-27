@@ -271,6 +271,6 @@ This project is private. All rights reserved.
 ---
 
 ## Related
--[Activity-points-calculation-file](https://sitttrkerala.ac.in/syllabus/rev2021/activity-rev2021.pdf) — activity-rev2021.pdf
+- [Activity-points-calculation-file](https://sitttrkerala.ac.in/syllabus/rev2021/activity-rev2021.pdf) — activity-rev2021.pdf
 - [SBTE Kerala](https://www.sbte.kerala.gov.in/) — State Board of Technical Education, Kerala
 - [ActivityPoints Web Frontend](https://apmsv1.onrender.com) — Companion web app for tutors and admins

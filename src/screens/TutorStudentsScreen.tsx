@@ -75,6 +75,7 @@ interface Student {
   totalPoints: number;
   isLateralEntry?: boolean;
   createdAt?: string;
+  profilePhoto?: string | null;
 }
 
 interface Certificate {
@@ -507,6 +508,8 @@ export default function TutorStudentsScreen() {
   const [filterBranch, setFilterBranch] = useState('');
   const [filterModalVisible, setFilterModalVisible] = useState(false);
 
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+
   const sortBadgeAnim = useRef(new Animated.Value(1)).current;
 
   const fetchStudents = useCallback(async () => {
@@ -676,14 +679,20 @@ export default function TutorStudentsScreen() {
     const branchName = getBranchName(item.branch);
     const threshold  = passThreshold(item.isLateralEntry);
     const isPassing  = (item.totalPoints ?? 0) >= threshold;
+    const initials   = item.name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?';
 
     return (
-      <View style={[styles.card, {backgroundColor: colors.card, borderColor: colors.border}]}>
+      <TouchableOpacity
+        style={[styles.card, {backgroundColor: colors.card, borderColor: colors.border}]}
+        onPress={() => setSelectedStudent(item)}
+        activeOpacity={0.75}>
         <View style={styles.cardTop}>
           <View style={styles.avatarSmall}>
-            <Text style={styles.avatarSmallText}>
-              {item.name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?'}
-            </Text>
+            {item.profilePhoto ? (
+              <Image source={{uri: item.profilePhoto}} style={styles.avatarSmallImage} />
+            ) : (
+              <Text style={styles.avatarSmallText}>{initials}</Text>
+            )}
           </View>
           <View style={styles.cardInfo}>
             <Text style={[styles.studentName, {color: colors.text}]}>{item.name}</Text>
@@ -717,7 +726,7 @@ export default function TutorStudentsScreen() {
             </View>
           )}
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -932,6 +941,106 @@ export default function TutorStudentsScreen() {
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* ── Student Profile View Modal ── */}
+      <Modal
+        visible={selectedStudent !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSelectedStudent(null)}>
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setSelectedStudent(null)}>
+          <View
+            style={[styles.profileSheet, {backgroundColor: colors.card}]}
+            onStartShouldSetResponder={() => true}>
+            {/* Handle */}
+            <View style={[styles.sheetHandle, {backgroundColor: colors.border}]} />
+
+            {selectedStudent && (() => {
+              const batchName  = getBatchName(selectedStudent.batch);
+              const branchName = getBranchName(selectedStudent.branch);
+              const threshold  = passThreshold(selectedStudent.isLateralEntry);
+              const isPassing  = (selectedStudent.totalPoints ?? 0) >= threshold;
+              const initials   = selectedStudent.name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '?';
+
+              return (
+                <>
+                  {/* Avatar */}
+                  <View style={styles.profileAvatarWrap}>
+                    {selectedStudent.profilePhoto ? (
+                      <Image
+                        source={{uri: selectedStudent.profilePhoto}}
+                        style={styles.profileAvatar}
+                      />
+                    ) : (
+                      <View style={[styles.profileAvatarFallback, {backgroundColor: colors.primary}]}>
+                        <Text style={styles.profileAvatarInitials}>{initials}</Text>
+                      </View>
+                    )}
+                    {isPassing && (
+                      <View style={styles.profileTrophyBadge}>
+                        <Icon name="trophy" size={14} color="#854d0e" />
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Name & Reg */}
+                  <Text style={[styles.profileName, {color: colors.text}]}>{selectedStudent.name}</Text>
+                  <Text style={[styles.profileReg, {color: colors.textMuted}]}>{selectedStudent.registerNumber}</Text>
+                  {selectedStudent.email ? (
+                    <Text style={[styles.profileEmail, {color: colors.textMuted}]}>{selectedStudent.email}</Text>
+                  ) : null}
+
+                  {/* Stats row */}
+                  <View style={[styles.profileStatsRow, {borderColor: colors.border}]}>
+                    <View style={styles.profileStat}>
+                      <Text style={[styles.profileStatVal, {color: colors.primary}]}>{selectedStudent.totalPoints ?? 0}</Text>
+                      <Text style={[styles.profileStatLabel, {color: colors.textMuted}]}>Points</Text>
+                    </View>
+                    <View style={[styles.profileStatDivider, {backgroundColor: colors.border}]} />
+                    <View style={styles.profileStat}>
+                      <Text style={[styles.profileStatVal, {color: colors.text}]}>{batchName || '—'}</Text>
+                      <Text style={[styles.profileStatLabel, {color: colors.textMuted}]}>Batch</Text>
+                    </View>
+                    <View style={[styles.profileStatDivider, {backgroundColor: colors.border}]} />
+                    <View style={styles.profileStat}>
+                      <Text style={[styles.profileStatVal, {color: colors.text}]}>{branchName || '—'}</Text>
+                      <Text style={[styles.profileStatLabel, {color: colors.textMuted}]}>Branch</Text>
+                    </View>
+                  </View>
+
+                  {/* Badges */}
+                  <View style={styles.profileBadgesRow}>
+                    <View style={[styles.profileStatusBadge, {backgroundColor: isPassing ? '#dcfce7' : '#fef2f2'}]}>
+                      <Icon
+                        name={isPassing ? 'check-circle' : 'clock-alert-outline'}
+                        size={14}
+                        color={isPassing ? '#16a34a' : '#dc2626'}
+                      />
+                      <Text style={[styles.profileStatusText, {color: isPassing ? '#16a34a' : '#dc2626'}]}>
+                        {isPassing ? 'Passing' : 'Needs More Points'}
+                      </Text>
+                    </View>
+                    {selectedStudent.isLateralEntry && (
+                      <View style={[styles.lateralBadge, {marginLeft: 0}]}>
+                        <Text style={styles.lateralText}>Lateral Entry</Text>
+                      </View>
+                    )}
+                  </View>
+                </>
+              );
+            })()}
+
+            <TouchableOpacity
+              style={[styles.sheetCloseBtn, {backgroundColor: colors.primaryMuted, marginTop: 20}]}
+              onPress={() => setSelectedStudent(null)}>
+              <Text style={[styles.sheetCloseBtnText, {color: colors.primary}]}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -956,7 +1065,8 @@ const styles = StyleSheet.create({
   list: { paddingBottom: 24 },
   card: { borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 12 },
   cardTop: { flexDirection: 'row', alignItems: 'center' },
-  avatarSmall: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#f1f5f9', justifyContent: 'center', alignItems: 'center', marginRight: 12 },
+  avatarSmall: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#f1f5f9', justifyContent: 'center', alignItems: 'center', marginRight: 12, overflow: 'hidden' },
+  avatarSmallImage: { width: 38, height: 38, borderRadius: 19 },
   avatarSmallText: { fontSize: 13, fontWeight: '700', color: '#475569' },
   cardInfo: { flex: 1 },
   studentName: { fontSize: 15, fontWeight: '700', marginBottom: 2 },
@@ -1001,4 +1111,23 @@ const styles = StyleSheet.create({
   chipGroup: { flexDirection: 'row', gap: 8, paddingBottom: 4 },
   chip: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 16, borderWidth: 1 },
   chipText: { fontSize: 13, fontWeight: '600' },
+
+  // Student profile modal
+  profileSheet: { borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 36, alignItems: 'center', shadowColor: '#000', shadowOffset: {width: 0, height: -4}, shadowOpacity: 0.12, shadowRadius: 16, elevation: 12 },
+  profileAvatarWrap: { position: 'relative', marginBottom: 16, marginTop: 8 },
+  profileAvatar: { width: 90, height: 90, borderRadius: 45 },
+  profileAvatarFallback: { width: 90, height: 90, borderRadius: 45, alignItems: 'center', justifyContent: 'center' },
+  profileAvatarInitials: { color: '#fff', fontSize: 32, fontWeight: '800' },
+  profileTrophyBadge: { position: 'absolute', bottom: 0, right: 0, width: 28, height: 28, borderRadius: 14, backgroundColor: '#fef9c3', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#fff' },
+  profileName: { fontSize: 20, fontWeight: '800', textAlign: 'center', marginBottom: 4 },
+  profileReg: { fontSize: 13, fontWeight: '600', textAlign: 'center', marginBottom: 2 },
+  profileEmail: { fontSize: 12, textAlign: 'center', marginBottom: 20 },
+  profileStatsRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 16, paddingVertical: 14, paddingHorizontal: 8, marginBottom: 16, width: '100%' },
+  profileStat: { flex: 1, alignItems: 'center' },
+  profileStatVal: { fontSize: 16, fontWeight: '800', marginBottom: 2 },
+  profileStatLabel: { fontSize: 11, fontWeight: '500' },
+  profileStatDivider: { width: 1, height: 36 },
+  profileBadgesRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 4 },
+  profileStatusBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
+  profileStatusText: { fontSize: 12, fontWeight: '700' },
 });

@@ -58,7 +58,14 @@ export default function ProfileScreen() {
   const navigation = useNavigation<any>();
 
   const [uploading, setUploading] = useState(false);
-  const [tutor, setTutor] = useState<{name: string; email: string; batch?: {name: string}; branch?: {name: string}} | null>(null);
+  const [tutor, setTutor] = useState<{
+  name: string;
+  email: string;
+  profilePhoto?: string;
+  batch?: {name: string};
+  branch?: {name: string};
+} | null>(null);
+
   const [tutorLoading, setTutorLoading] = useState(true);
 
   // Derive display values
@@ -235,11 +242,18 @@ export default function ProfileScreen() {
           ) : tutor ? (
             <View style={styles.tutorRow}>
               {/* Tutor avatar */}
-              <View style={[styles.tutorAvatar, {backgroundColor: PRIMARY}]}>
-                <Text style={styles.tutorInitials}>
-                  {getInitials(tutor.name)}
-                </Text>
-              </View>
+              {tutor.profilePhoto ? (
+                <Image
+                  source={{uri: tutor.profilePhoto}}
+                  style={styles.tutorAvatarImage}
+                />
+              ) : (
+                <View style={[styles.tutorAvatar, {backgroundColor: PRIMARY}]}>
+                  <Text style={styles.tutorInitials}>
+                    {getInitials(tutor.name)}
+                  </Text>
+                </View>
+              )}
               <View style={styles.tutorInfo}>
                 <Text style={[styles.tutorName, {color: colors.text}]}>{tutor.name}</Text>
                 <View style={styles.tutorMeta}>
@@ -499,6 +513,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+  },
+  tutorAvatarImage: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
   },
   tutorInitials: {
     color: '#fff',

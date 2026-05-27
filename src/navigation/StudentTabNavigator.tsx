@@ -20,12 +20,10 @@ import {useTheme} from '../theme';
 import DashboardScreen from '../screens/DashboardScreen';
 import CertificatesScreen from '../screens/CertificatesScreen';
 import UploadCertificateScreen from '../screens/UploadCertificateScreen';
-import ProfileScreen from '../screens/ProfileScreen';
 import {useFcmToken} from '../utils/useFcmToken';
 import {tabEmitter} from '../utils/tabEvents';
 
 // ── tab definitions ───────────────────────────────────────────────────────────
-// Only the first 3 appear in the tab bar. Profile (index 3) is hidden.
 
 const VISIBLE_TABS = [
   {name: 'Dashboard',    icon: 'view-dashboard-outline', component: DashboardScreen},
@@ -33,14 +31,11 @@ const VISIBLE_TABS = [
   {name: 'Upload',       icon: 'upload-outline',         component: UploadCertificateScreen},
 ];
 
-// All panels rendered in the swipe row (Profile is panel 3 but invisible in bar)
-const ALL_PANELS = [
-  ...VISIBLE_TABS,
-  {name: 'Profile', icon: '', component: ProfileScreen},
-];
+// All panels rendered in the swipe row (Profile removed — it lives in a stack)
+const ALL_PANELS = [...VISIBLE_TABS];
 
-const PANEL_COUNT  = ALL_PANELS.length; // 4
-const TAB_COUNT    = VISIBLE_TABS.length; // 3 (only these show in bar)
+const PANEL_COUNT  = ALL_PANELS.length; // 3
+const TAB_COUNT    = VISIBLE_TABS.length; // 3
 
 const SPRING_CONFIG = {
   damping: 38,
@@ -96,8 +91,6 @@ export default function StudentTabNavigator() {
     return () => tabEmitter.off('switchTab', handler);
   }, [goToTab]);
 
-  // Swipe gesture — only allow swiping between visible tabs (0-2).
-  // Profile panel (3) is only reachable via the menu, not by swiping.
   const pan = Gesture.Pan()
     .activeOffsetX([-10, 10])
     .failOffsetY([-15, 15])
@@ -106,7 +99,7 @@ export default function StudentTabNavigator() {
       const base = -currentIndexSV.value * containerWidth;
       let drag = event.translationX;
       const projected = base + drag;
-      const minX = -(TAB_COUNT - 1) * containerWidth; // clamp at Upload (index 2)
+      const minX = -(PANEL_COUNT - 1) * containerWidth; // clamp at last tab
       if (projected > 0) {drag = drag * 0.15;}
       else if (projected < minX) {drag = drag * 0.15;}
       translateX.value = base + drag;
@@ -116,13 +109,10 @@ export default function StudentTabNavigator() {
       'worklet';
       const {translationX: tx, velocityX: vx} = event;
       let targetIndex = currentIndexSV.value;
-      // Only snap within visible tabs
-      if (currentIndexSV.value < TAB_COUNT) {
-        if (vx < -500 || tx < -containerWidth * 0.3) {
-          targetIndex = Math.min(currentIndexSV.value + 1, TAB_COUNT - 1);
-        } else if (vx > 500 || tx > containerWidth * 0.3) {
-          targetIndex = Math.max(currentIndexSV.value - 1, 0);
-        }
+      if (vx < -500 || tx < -containerWidth * 0.3) {
+        targetIndex = Math.min(currentIndexSV.value + 1, PANEL_COUNT - 1);
+      } else if (vx > 500 || tx > containerWidth * 0.3) {
+        targetIndex = Math.max(currentIndexSV.value - 1, 0);
       }
       snapToIndex(targetIndex, containerWidth);
     });

@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import {ScrollView} from 'react-native-gesture-handler';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import {useNavigation} from '@react-navigation/native';
 
 import axiosInstance, {BASE_URL} from '../api/axiosInstance';
 import {useAuth} from '../context/AuthContext';
@@ -34,6 +35,7 @@ function photoUrl(path: string | null | undefined): string | null {
 export default function DashboardScreen() {
   const {user, setUser, logout} = useAuth();
   const {colors, isDark} = useTheme();
+  const navigation = useNavigation<any>();
 
   const [certificates, setCertificates] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
@@ -132,7 +134,7 @@ export default function DashboardScreen() {
     });
   };
 
-  const goToProfile = () => closeMenu(() => tabEmitter.emit('switchTab', 3));
+  const goToProfile = () => closeMenu(() => navigation.navigate('Profile'));
   const handleLogout = () => closeMenu(() => logout());
 
   const menuScale = menuAnim.interpolate({inputRange: [0, 1], outputRange: [0.85, 1]});

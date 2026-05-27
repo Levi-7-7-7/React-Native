@@ -17,10 +17,29 @@ import TutorForgotPasswordScreen from '../screens/TutorForgotPasswordScreen';
 
 import StudentTabNavigator from './StudentTabNavigator';
 import TutorTabNavigator from './TutorTabNavigator';
+import ProfileScreen from '../screens/ProfileScreen';
 
 import LoadingScreen from '../screens/LoadingScreen';
 
 const Stack = createNativeStackNavigator();
+const StudentStack = createNativeStackNavigator();
+
+/**
+ * StudentStackNavigator wraps the tab navigator with ProfileScreen on top.
+ * This ensures ProfileScreen is a full-screen detail page with no tab bar.
+ */
+function StudentStackNavigator() {
+  return (
+    <StudentStack.Navigator
+      screenOptions={{
+        headerShown: false,
+        animation: 'slide_from_right',
+      }}>
+      <StudentStack.Screen name="StudentTabs" component={StudentTabNavigator} />
+      <StudentStack.Screen name="Profile" component={ProfileScreen} />
+    </StudentStack.Navigator>
+  );
+}
 
 export default function RootNavigator() {
   const {role, loading} = useAuth();
@@ -38,7 +57,7 @@ export default function RootNavigator() {
       {role === 'student' ? (
         <Stack.Screen
           name="StudentApp"
-          component={StudentTabNavigator}
+          component={StudentStackNavigator}
         />
       ) : role === 'tutor' ? (
         <Stack.Screen

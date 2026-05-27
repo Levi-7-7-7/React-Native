@@ -34,18 +34,17 @@ import ImageResizer from 'react-native-image-resizer';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
 import {useAuth} from '../context/AuthContext';
-import axiosInstance, {BASE_URL} from '../api/axiosInstance';
+import axiosInstance from '../api/axiosInstance';
 import {useTheme} from '../theme';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
-/** Build the full URL for a profile photo path returned by the backend. */
-function photoUrl(path: string | null | undefined): string | null {
-  if (!path) {return null;}
-  if (path.startsWith('http')) {return path;}
-  // BASE_URL is e.g. "https://…/api" — strip /api to get origin
-  const origin = BASE_URL.replace(/\/api\/?$/, '');
-  return `${origin}${path}`;
+/**
+ * ImageKit returns a full https:// URL, so we use it directly.
+ * Returns null when there is no photo yet (triggers the initials fallback).
+ */
+function photoUrl(url: string | null | undefined): string | null {
+  return url ?? null;
 }
 
 // ─── component ────────────────────────────────────────────────────────────────

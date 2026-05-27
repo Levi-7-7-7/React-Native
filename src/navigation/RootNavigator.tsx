@@ -2,8 +2,9 @@
  * RootNavigator — uses UnifiedLoginScreen instead of separate
  * LoginScreen + TutorLoginScreen.
  *
- * Drop this in place of src/navigation/RootNavigator.tsx
+ * src/navigation/RootNavigator.tsx
  */
+
 import React from 'react';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {useAuth} from '../context/AuthContext';
@@ -13,8 +14,10 @@ import VerifyOtpScreen from '../screens/VerifyOtpScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import ResetPasswordScreen from '../screens/ResetPasswordScreen';
 import TutorForgotPasswordScreen from '../screens/TutorForgotPasswordScreen';
+
 import StudentTabNavigator from './StudentTabNavigator';
 import TutorTabNavigator from './TutorTabNavigator';
+
 import LoadingScreen from '../screens/LoadingScreen';
 
 const Stack = createNativeStackNavigator();
@@ -27,23 +30,50 @@ export default function RootNavigator() {
   }
 
   return (
-    <Stack.Navigator screenOptions={{headerShown: false}}>
+    <Stack.Navigator
+      screenOptions={{
+        headerShown: false,
+        animation: 'slide_from_right',
+      }}>
       {role === 'student' ? (
-        <Stack.Screen name="StudentApp" component={StudentTabNavigator} />
+        <Stack.Screen
+          name="StudentApp"
+          component={StudentTabNavigator}
+        />
       ) : role === 'tutor' ? (
-        <Stack.Screen name="TutorApp" component={TutorTabNavigator} />
+        <Stack.Screen
+          name="TutorApp"
+          component={TutorTabNavigator}
+        />
       ) : (
         <>
-          {/* Single unified login — handles both students and tutors */}
-          <Stack.Screen name="Login" component={UnifiedLoginScreen} />
+          {/* Unified Login */}
+          <Stack.Screen
+            name="Login"
+            component={UnifiedLoginScreen}
+          />
 
-          {/* Student flows */}
-          <Stack.Screen name="VerifyOtp" component={VerifyOtpScreen} />
-          <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
-          <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+          {/* Student Flows */}
+          <Stack.Screen
+            name="VerifyOtp"
+            component={VerifyOtpScreen}
+          />
 
-          {/* Tutor flows */}
-          <Stack.Screen name="TutorForgotPassword" component={TutorForgotPasswordScreen} />
+          <Stack.Screen
+            name="ForgotPassword"
+            component={ForgotPasswordScreen}
+          />
+
+          <Stack.Screen
+            name="ResetPassword"
+            component={ResetPasswordScreen}
+          />
+
+          {/* Tutor Flows */}
+          <Stack.Screen
+            name="TutorForgotPassword"
+            component={TutorForgotPasswordScreen}
+          />
         </>
       )}
     </Stack.Navigator>

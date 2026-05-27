@@ -121,10 +121,10 @@ export default function StudentTabNavigator() {
     transform: [{translateX: (progress.value * containerWidth) / TAB_COUNT}],
   }));
 
-  return (
-    <View
-      style={styles.container}
-      onLayout={e => {
+return (
+  <View
+    style={[styles.container, {backgroundColor: colors.bg}]}
+    onLayout={e => {
         const w = e.nativeEvent.layout.width;
         setContainerWidth(w);
         translateX.value = -currentIndexSV.value * w;
@@ -142,6 +142,7 @@ export default function StudentTabNavigator() {
             },
             rowAnimStyle,
           ]}>
+            
           {TABS.map(tab => {
             const Comp = tab.component;
             return (
@@ -265,7 +266,7 @@ function AnimatedTabItem({
 }
 
 const styles = StyleSheet.create({
-  container: {flex: 1, overflow: 'hidden'},
+  container: {flex: 1, overflow: 'hidden'},  // was missing backgroundColor
   row: {
     position: 'absolute',
     top: 0,

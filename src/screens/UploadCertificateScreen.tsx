@@ -5,8 +5,7 @@ import {
   FlatList, PermissionsAndroid,
   Animated,InteractionManager,
 } from 'react-native';
-import {ScrollView} from 'react-native-gesture-handler';
-import {SafeAreaView} from 'react-native-safe-area-context';
+import {ScrollView} from 'react-native-gesture-handler'; 
 import DateTimePicker, {
   DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
@@ -20,6 +19,7 @@ import {useFocusEffect} from '@react-navigation/native';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 import LottieView from 'lottie-react-native';
 import {tabEmitter} from '../utils/tabEvents';
+import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 
 const MAX_FILE_SIZE_MB = 3;
 const RESIZE_WIDTH  = 1200;
@@ -154,7 +154,7 @@ function DatePickerField({
 // ← No navigation prop
 export default function UploadCertificateScreen() {
   const {colors} = useTheme();
-
+  const insets = useSafeAreaInsets();
   const [categories, setCategories] = useState<any[]>([]);
   const [categoryId, setCategoryId] = useState('');
   const [subcategories, setSubcategories] = useState<any[]>([]);
@@ -587,8 +587,8 @@ const canSubmit = isOthers
   const selectedLevelObj = currentSub?.levels?.find((l: any) => l.name === levelSelected);
   const prizeItems = selectedLevelObj ? selectedLevelObj.prizes.map((p: any) => ({label: p.type, value: p.type})) : [];
 
-  return (
-    <SafeAreaView style={[styles.safeArea, {backgroundColor: colors.bg}]}>
+return (
+  <View style={[styles.safeArea, {backgroundColor: colors.bg}]}>
 
       <DropdownModal visible={catModalOpen} title="Select Category" items={catItems}
         selectedValue={categoryId} colors={colors}
@@ -647,7 +647,7 @@ const canSubmit = isOthers
 
       <ScrollView
         style={[styles.container, {backgroundColor: colors.bg}]}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, {paddingTop: insets.top + 12}]}
         keyboardShouldPersistTaps="handled">
         <Text style={[styles.pageTitle, {color: colors.primary}]}>Upload Certificate</Text>
 
@@ -852,7 +852,7 @@ const canSubmit = isOthers
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 

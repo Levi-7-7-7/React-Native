@@ -66,3 +66,32 @@ export async function showCertificateNotification(params: {
     },
   });
 }
+
+/** Shown to the TUTOR when a student uploads a new certificate. */
+export async function showNewCertificateNotification(params: {
+  title: string;
+  body: string;
+}): Promise<void> {
+  await notifee.displayNotification({
+    title: params.title,
+    body: params.body,
+    android: {
+      channelId: CHANNEL_ID,
+      importance: AndroidImportance.HIGH,
+      smallIcon: 'ic_stat_notification',
+      color: '#2563eb',
+      pressAction: {
+        id: 'default',
+        launchActivity: 'default',
+      },
+    },
+    ios: {
+      sound: 'default',
+      foregroundPresentationOptions: {
+        alert: true,
+        badge: true,
+        sound: true,
+      },
+    },
+  });
+}

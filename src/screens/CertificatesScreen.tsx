@@ -1,7 +1,7 @@
 import React, {useState, useEffect, useMemo} from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  RefreshControl, Alert, ActivityIndicator, StatusBar, Linking,
+  View, Text, StyleSheet, TouchableOpacity,
+  RefreshControl, Alert, ActivityIndicator, Linking,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import axiosInstance from '../api/axiosInstance';
@@ -9,6 +9,8 @@ import {useAuth} from '../context/AuthContext';
 import {calcCappedPoints, passThreshold} from '../utils/calcPoints';
 import {useTheme} from '../theme';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+// In DashboardScreen, CertificatesScreen, UploadCertificateScreen
+import { ScrollView } from 'react-native-gesture-handler'; // ← use this, not react-native!
 
 const FILTERS = ['all', 'approved', 'pending', 'rejected'];
 
@@ -137,7 +139,6 @@ export default function CertificatesScreen() {
 
   return (
     <SafeAreaView style={[styles.safeArea, {backgroundColor: colors.bg}]}>
-      <StatusBar barStyle={colors.statusBar} backgroundColor={colors.bg} />
       <ScrollView
         style={[styles.container, {backgroundColor: colors.bg}]}
         contentContainerStyle={styles.content}

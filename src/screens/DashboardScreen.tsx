@@ -1,16 +1,18 @@
 import React, {useEffect, useState, useMemo} from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  RefreshControl, ActivityIndicator, StatusBar,
+  View, Text, StyleSheet, TouchableOpacity,
+  RefreshControl, ActivityIndicator,
 } from 'react-native';
+import {ScrollView} from 'react-native-gesture-handler';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import axiosInstance from '../api/axiosInstance';
 import {useAuth} from '../context/AuthContext';
 import {calcCappedPoints, passThreshold} from '../utils/calcPoints';
 import {useTheme} from '../theme';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
+import {tabEmitter} from '../utils/tabEvents';
 
-export default function DashboardScreen({navigation}: any) {
+export default function DashboardScreen() {
   const {user, setUser, logout} = useAuth();
   const {colors, isDark} = useTheme();
   const [certificates, setCertificates] = useState<any[]>([]);
@@ -76,7 +78,6 @@ export default function DashboardScreen({navigation}: any) {
 
   return (
     <SafeAreaView style={[styles.safeArea, {backgroundColor: colors.bg}]}>
-      <StatusBar barStyle={colors.statusBar} backgroundColor={colors.bg} />
       <ScrollView
         style={[styles.container, {backgroundColor: colors.bg}]}
         contentContainerStyle={styles.content}
@@ -123,7 +124,7 @@ export default function DashboardScreen({navigation}: any) {
           <MaterialCommunityIcons
             name="trophy-outline"
             size={48}
-            color={colors.primary}
+            color={colors.trophyIcon}
           />
         </View>
 
@@ -193,13 +194,12 @@ export default function DashboardScreen({navigation}: any) {
                       numberOfLines={1}>
                       {cert.subcategory || cert.eventName || 'Certificate'}
                     </Text>
-                   <View style={styles.dateRow}>
+                    <View style={styles.dateRow}>
                       <MaterialCommunityIcons
                         name="calendar-month-outline"
                         size={14}
                         color={colors.textMuted}
                       />
-
                       <Text style={[styles.activityDate, {color: colors.textMuted}]}>
                         {cert.createdAt
                           ? new Date(cert.createdAt).toLocaleDateString()
@@ -219,7 +219,7 @@ export default function DashboardScreen({navigation}: any) {
           {!loading && certificates.length > 5 && (
             <TouchableOpacity
               style={styles.viewAllBtn}
-              onPress={() => navigation.navigate('Certificates')}>
+              onPress={() => tabEmitter.emit('switchTab', 1)}>
               <Text style={[styles.viewAllText, {color: colors.primary}]}>
                 View All Certificates →
               </Text>
@@ -258,14 +258,12 @@ const styles = StyleSheet.create({
   pointsLabel: {fontSize: 13, fontWeight: '500', marginBottom: 4},
   pointsValue: {fontSize: 52, fontWeight: '800', color: '#fff'},
   pointsOf: {fontSize: 13, marginTop: 2},
-  // trophyEmoji: {fontSize: 52},
   progressBg: {height: 6, borderRadius: 3, marginTop: 12, marginBottom: 14},
   progressFill: {height: 6, borderRadius: 3},
   passBanner: {
     borderRadius: 14, padding: 14, marginBottom: 20,
     flexDirection: 'row', alignItems: 'center', gap: 10,
   },
-  // passBannerEmoji: {fontSize: 28},
   passBannerText: {flex: 1},
   passBannerTitle: {fontSize: 14, fontWeight: '800'},
   passBannerSub: {fontSize: 12, marginTop: 2},
@@ -290,18 +288,15 @@ const styles = StyleSheet.create({
   activityLeft: {flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1},
   activityDot: {width: 10, height: 10, borderRadius: 5},
   activityName: {fontSize: 14, fontWeight: '600'},
-  activityDate: {
-  fontSize: 12,
-},
+  activityDate: {fontSize: 12},
   activityStatus: {fontSize: 13, fontWeight: '700'},
   noData: {textAlign: 'center', padding: 20, fontSize: 14},
   viewAllBtn: {marginTop: 16, alignItems: 'center'},
   viewAllText: {fontWeight: '600', fontSize: 14},
-
   dateRow: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  gap: 4,
-  marginTop: 2,
-},
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 2,
+  },
 });

@@ -19,6 +19,11 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="http" />
         </intent>
+        <!-- Allow querying apps that can open PDF files -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="application/pdf" />
+        </intent>
     </queries>
 
     <application
@@ -29,7 +34,8 @@
       android:allowBackup="false"
       android:theme="@style/AppTheme"
       android:usesCleartextTraffic="${usesCleartextTraffic}"
-      android:supportsRtl="true">
+      android:supportsRtl="true"
+      android:requestLegacyExternalStorage="true">
 
       <activity
         android:name=".MainActivity"
@@ -40,18 +46,10 @@
         android:theme="@style/SplashTheme"
         android:exported="true">
 
-            
-
         <intent-filter>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent-filter>
-
-        <!-- <intent-filter>
-            <action android:name="com.google.firebase.MESSAGING_EVENT" />
-            <category android:name="android.intent.category.DEFAULT" />
-        </intent-filter> -->
-
 
         <intent-filter>
           <action android:name="android.intent.action.MAIN" />
@@ -71,7 +69,6 @@
               android:name="com.google.firebase.messaging.default_notification_icon"
               android:resource="@drawable/ic_stat_notification" />
 
-
       <service
         android:name="io.invertase.firebase.messaging.ReactNativeFirebaseMessagingService"
         android:exported="false">
@@ -80,7 +77,20 @@
         </intent-filter>
       </service>
 
-
+      <!--
+        FileProvider is REQUIRED for react-native-share to share files on Android 7+.
+        Without this, sharing a file:// URI crashes with:
+        "attempt to invoke virtual method 'java.lang.String android.net.Uri.getScheme()' on a null object reference"
+      -->
+      <provider
+        android:name="androidx.core.content.FileProvider"
+        android:authorities="${applicationId}.provider"
+        android:exported="false"
+        android:grantUriPermissions="true">
+        <meta-data
+          android:name="android.support.FILE_PROVIDER_PATHS"
+          android:resource="@xml/file_provider_paths" />
+      </provider>
 
     </application>
 </manifest>

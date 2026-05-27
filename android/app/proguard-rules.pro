@@ -131,3 +131,13 @@
     java.lang.Object writeReplace();
     java.lang.Object readResolve();
 }
+
+-dontwarn com.gemalto.jp2.**
+-dontwarn com.tom_roush.pdfbox.**
+-dontwarn org.apache.commons.logging.**
+
+# Keep only the classes react-native-html-to-pdf actually calls
+-keep class com.tom_roush.pdfbox.android.PDFBoxResourceLoader { *; }
+-keep class com.tom_roush.pdfbox.pdmodel.PDDocument { *; }
+-keep class com.tom_roush.pdfbox.pdmodel.PDPage { *; }
+-keep class com.tom_roush.pdfbox.pdmodel.PDPageTree { *; }

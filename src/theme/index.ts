@@ -44,6 +44,8 @@ export const lightColors = {
   successTitle: '#065f46',
   successSub: '#047857',
   successBtn: '#059669',
+  trophyIcon: '#fbbf24',   // ← amber/gold, visible on cardBlue (#1e3a8a)
+  success: '#22c55e',      // ← add this too if missing
 };
 
 export const darkColors = {
@@ -90,6 +92,8 @@ export const darkColors = {
   successTitle: '#4ade80',
   successSub: '#86efac',
   successBtn: '#16a34a',
+  trophyIcon: '#fbbf24',   // ← same gold works on dark cardBlue too
+  success: '#22c55e',
 };
 
 export type Colors = typeof lightColors;

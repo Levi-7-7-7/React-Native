@@ -18,6 +18,7 @@ import TutorForgotPasswordScreen from '../screens/TutorForgotPasswordScreen';
 import StudentTabNavigator from './StudentTabNavigator';
 import TutorTabNavigator from './TutorTabNavigator';
 import ProfileScreen from '../screens/ProfileScreen';
+import TutorProfileScreen from '../screens/TutorProfileScreen';
 
 import LoadingScreen from '../screens/LoadingScreen';
 
@@ -37,6 +38,23 @@ function StudentStackNavigator() {
       }}>
       <StudentStack.Screen name="StudentTabs" component={StudentTabNavigator} />
       <StudentStack.Screen name="Profile" component={ProfileScreen} />
+    </StudentStack.Navigator>
+  );
+}
+
+
+/**
+ * TutorStackNavigator wraps the tab navigator with TutorProfileScreen on top.
+ */
+function TutorStackNavigator() {
+  return (
+    <StudentStack.Navigator
+      screenOptions={{
+        headerShown: false,
+        animation: 'slide_from_right',
+      }}>
+      <StudentStack.Screen name="TutorTabs"    component={TutorTabNavigator} />
+      <StudentStack.Screen name="TutorProfile" component={TutorProfileScreen} />
     </StudentStack.Navigator>
   );
 }
@@ -62,7 +80,7 @@ export default function RootNavigator() {
       ) : role === 'tutor' ? (
         <Stack.Screen
           name="TutorApp"
-          component={TutorTabNavigator}
+          component={TutorStackNavigator}
         />
       ) : (
         <>

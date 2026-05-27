@@ -15,6 +15,7 @@ import {
   Platform,
   Dimensions,
   Alert,
+  Image,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -24,6 +25,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import {Gesture, GestureDetector} from 'react-native-gesture-handler';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
@@ -34,6 +36,7 @@ import TutorUploadCSVScreen from '../screens/TutorUploadCSVScreen';
 import TutorPendingScreen from '../screens/TutorPendingScreen';
 import TutorApprovedScreen from '../screens/TutorApprovedScreen';
 import {useTutorFcmToken} from '../utils/useTutorFcmToken';
+import tutorAxios from '../api/tutorAxios';
 
 const TAB_COUNT = 4;
 const TABS = [
@@ -53,8 +56,10 @@ const SPRING_CONFIG = {
 export default function TutorTabNavigator() {
   const {colors} = useTheme();
   const {logout} = useAuth();
+  const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const [tutorName, setTutorName] = useState('Tutor');
+  const [tutorPhoto, setTutorPhoto] = useState<string | null>(null);
   const [containerWidth, setContainerWidth] = useState(
     Dimensions.get('window').width,
   );
@@ -78,11 +83,26 @@ export default function TutorTabNavigator() {
 
   const TAB_BAR_HEIGHT = Platform.OS === 'android' ? 65 + insets.bottom : 80;
 
-  useEffect(() => {
-    AsyncStorage.getItem('tutorName').then(n => {
+  // Fetch full profile on mount and every time we return from the profile screen
+  const fetchProfile = useCallback(async () => {
+    try {
+      const res = await tutorAxios.get('/tutors/me');
+      const data = res.data;
+      if (data?.name)  { setTutorName(data.name); await AsyncStorage.setItem('tutorName', data.name); }
+      setTutorPhoto(data?.profilePhoto ?? null);
+    } catch {
+      // fallback: at least load name from storage
+      const n = await AsyncStorage.getItem('tutorName');
       if (n) setTutorName(n);
-    });
+    }
   }, []);
+
+  useEffect(() => { fetchProfile(); }, [fetchProfile]);
+
+  // Refresh photo when navigating back from TutorProfileScreen
+  useFocusEffect(
+    useCallback(() => { fetchProfile(); }, [fetchProfile]),
+  );
 
   const avatarInitials = tutorName
     .split(' ')
@@ -171,9 +191,19 @@ export default function TutorTabNavigator() {
           },
         ]}>
         <View style={styles.headerLeft}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{avatarInitials}</Text>
-          </View>
+          <TouchableOpacity
+            style={styles.avatar}
+            onPress={() => navigation.navigate('TutorProfile')}
+            activeOpacity={0.8}>
+            {tutorPhoto ? (
+              <Image
+                source={{uri: tutorPhoto}}
+                style={styles.avatarImage}
+              />
+            ) : (
+              <Text style={styles.avatarText}>{avatarInitials}</Text>
+            )}
+          </TouchableOpacity>
           <View>
             <Text style={[styles.welcomeText, {color: colors.primary}]}>
               Welcome, {tutorName}!
@@ -370,6 +400,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#2563eb',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
   },
   avatarText: {color: '#fff', fontWeight: '700', fontSize: 15},
   welcomeText: {fontSize: 15, fontWeight: '700'},

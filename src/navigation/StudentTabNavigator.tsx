@@ -1,12 +1,3 @@
-/**
- * StudentTabNavigator.tsx  (updated — adds Profile tab)
- *
- * Changes from the original:
- *   1. TAB_COUNT bumped 3 → 4
- *   2. New "Profile" tab added (account-circle icon) → ProfileScreen
- *   3. Everything else is identical to the original
- */
-
 import React, {useCallback, useState, useEffect} from 'react';
 import {
   Platform,
@@ -29,19 +20,27 @@ import {useTheme} from '../theme';
 import DashboardScreen from '../screens/DashboardScreen';
 import CertificatesScreen from '../screens/CertificatesScreen';
 import UploadCertificateScreen from '../screens/UploadCertificateScreen';
-import ProfileScreen from '../screens/ProfileScreen';   // ← NEW
+import ProfileScreen from '../screens/ProfileScreen';
 import {useFcmToken} from '../utils/useFcmToken';
 import {tabEmitter} from '../utils/tabEvents';
 
-// ── tabs ─────────────────────────────────────────────────────────────────────
+// ── tab definitions ───────────────────────────────────────────────────────────
+// Only the first 3 appear in the tab bar. Profile (index 3) is hidden.
 
-const TAB_COUNT = 4;  // was 3
-const TABS = [
+const VISIBLE_TABS = [
   {name: 'Dashboard',    icon: 'view-dashboard-outline', component: DashboardScreen},
   {name: 'Certificates', icon: 'certificate-outline',    component: CertificatesScreen},
   {name: 'Upload',       icon: 'upload-outline',         component: UploadCertificateScreen},
-  {name: 'Profile',      icon: 'account-circle-outline', component: ProfileScreen},  // ← NEW
 ];
+
+// All panels rendered in the swipe row (Profile is panel 3 but invisible in bar)
+const ALL_PANELS = [
+  ...VISIBLE_TABS,
+  {name: 'Profile', icon: '', component: ProfileScreen},
+];
+
+const PANEL_COUNT  = ALL_PANELS.length; // 4
+const TAB_COUNT    = VISIBLE_TABS.length; // 3 (only these show in bar)
 
 const SPRING_CONFIG = {
   damping: 38,
@@ -61,16 +60,16 @@ export default function StudentTabNavigator() {
     Dimensions.get('window').width,
   );
 
-  const translateX = useSharedValue(0);
-  const currentIndexSV = useSharedValue(0);
-  const progress = useSharedValue(0);
+  const translateX       = useSharedValue(0);
+  const currentIndexSV   = useSharedValue(0);
+  const progress         = useSharedValue(0);
 
   const TAB_BAR_HEIGHT = Platform.OS === 'android' ? 65 + insets.bottom : 80;
 
   const snapToIndex = useCallback(
     (index: number, width: number) => {
       'worklet';
-      const clamped = Math.max(0, Math.min(TAB_COUNT - 1, index));
+      const clamped = Math.max(0, Math.min(PANEL_COUNT - 1, index));
       currentIndexSV.value = clamped;
       progress.value = withSpring(clamped, {
         damping: 38,
@@ -97,6 +96,8 @@ export default function StudentTabNavigator() {
     return () => tabEmitter.off('switchTab', handler);
   }, [goToTab]);
 
+  // Swipe gesture — only allow swiping between visible tabs (0-2).
+  // Profile panel (3) is only reachable via the menu, not by swiping.
   const pan = Gesture.Pan()
     .activeOffsetX([-10, 10])
     .failOffsetY([-15, 15])
@@ -105,7 +106,7 @@ export default function StudentTabNavigator() {
       const base = -currentIndexSV.value * containerWidth;
       let drag = event.translationX;
       const projected = base + drag;
-      const minX = -(TAB_COUNT - 1) * containerWidth;
+      const minX = -(TAB_COUNT - 1) * containerWidth; // clamp at Upload (index 2)
       if (projected > 0) {drag = drag * 0.15;}
       else if (projected < minX) {drag = drag * 0.15;}
       translateX.value = base + drag;
@@ -115,10 +116,13 @@ export default function StudentTabNavigator() {
       'worklet';
       const {translationX: tx, velocityX: vx} = event;
       let targetIndex = currentIndexSV.value;
-      if (vx < -500 || tx < -containerWidth * 0.3) {
-        targetIndex = currentIndexSV.value + 1;
-      } else if (vx > 500 || tx > containerWidth * 0.3) {
-        targetIndex = currentIndexSV.value - 1;
+      // Only snap within visible tabs
+      if (currentIndexSV.value < TAB_COUNT) {
+        if (vx < -500 || tx < -containerWidth * 0.3) {
+          targetIndex = Math.min(currentIndexSV.value + 1, TAB_COUNT - 1);
+        } else if (vx > 500 || tx > containerWidth * 0.3) {
+          targetIndex = Math.max(currentIndexSV.value - 1, 0);
+        }
       }
       snapToIndex(targetIndex, containerWidth);
     });
@@ -128,7 +132,8 @@ export default function StudentTabNavigator() {
   }));
 
   const indicatorAnimStyle = useAnimatedStyle(() => ({
-    transform: [{translateX: (progress.value * containerWidth) / TAB_COUNT}],
+    // Only track position within the 3 visible tabs
+    transform: [{translateX: (Math.min(progress.value, TAB_COUNT - 1) * containerWidth) / TAB_COUNT}],
   }));
 
   return (
@@ -145,18 +150,18 @@ export default function StudentTabNavigator() {
           style={[
             styles.row,
             {
-              width: containerWidth * TAB_COUNT,
+              width: containerWidth * PANEL_COUNT,
               height: '100%',
               paddingBottom: TAB_BAR_HEIGHT,
               backgroundColor: colors.bg,
             },
             rowAnimStyle,
           ]}>
-          {TABS.map(tab => {
-            const Comp = tab.component;
+          {ALL_PANELS.map(panel => {
+            const Comp = panel.component;
             return (
               <View
-                key={tab.name}
+                key={panel.name}
                 style={{
                   width: containerWidth,
                   overflow: 'hidden',
@@ -170,7 +175,7 @@ export default function StudentTabNavigator() {
         </Animated.View>
       </GestureDetector>
 
-      {/* Tab bar */}
+      {/* Tab bar — only renders the 3 visible tabs */}
       <View
         style={[
           styles.tabBar,
@@ -193,8 +198,8 @@ export default function StudentTabNavigator() {
           />
         </View>
 
-        {/* Tab items */}
-        {TABS.map((tab, i) => (
+        {/* Visible tab items only */}
+        {VISIBLE_TABS.map((tab, i) => (
           <AnimatedTabItem
             key={tab.name}
             tab={tab}
@@ -209,7 +214,7 @@ export default function StudentTabNavigator() {
   );
 }
 
-// ── animated tab item (unchanged) ─────────────────────────────────────────────
+// ── animated tab item ─────────────────────────────────────────────────────────
 
 function AnimatedTabItem({
   tab,
@@ -218,7 +223,7 @@ function AnimatedTabItem({
   colors,
   onPress,
 }: {
-  tab: (typeof TABS)[0];
+  tab: (typeof VISIBLE_TABS)[0];
   index: number;
   progress: Animated.SharedValue<number>;
   colors: any;
@@ -273,7 +278,7 @@ function AnimatedTabItem({
   );
 }
 
-// ── styles (unchanged) ────────────────────────────────────────────────────────
+// ── styles ────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: {flex: 1, overflow: 'hidden'},
@@ -315,22 +320,16 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
     gap: 3,
   },
-  iconWrapper: {
-    width: 28,
-    height: 28,
-  },
-  iconCenter: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  iconWrapper: {width: 28, height: 28},
+  iconCenter: {alignItems: 'center', justifyContent: 'center'},
   labelWrapper: {
     height: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 56,   // slightly narrower to fit 4 tabs
+    minWidth: 64,
   },
   tabLabel: {
-    fontSize: 10,   // slightly smaller to fit 4 tabs
+    fontSize: 11,
     fontWeight: '600',
     textAlign: 'center',
   },

@@ -275,25 +275,38 @@ export default function UploadCertificateScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      clearTempCache();
+      // Don't clear cache while a system picker is open — the just-returned
+      // file URI lives in the temp dir and would be deleted before we can use it.
+      if (!isPicking.current) {
+        clearTempCache();
+      }
     }, []),
   );
 
-  // ← Fixed: no navigation.reset, uses tabEmitter instead
+  // Guard: only switch tabs when submitted was set by a real upload, not by a
+  // stale effect re-run triggered by Android returning from camera/gallery
+  // (which fires a background→active lifecycle bounce that can re-evaluate
+  // effects with stale closure values).
+  const submittedByUpload = useRef(false);
+  // Tracks when a system picker (camera/gallery) is open so useFocusEffect
+  // doesn't run clearTempCache mid-pick (which can delete the just-captured file).
+  const isPicking = useRef(false);
+
   useEffect(() => {
-    if (submitted) {
-      Animated.parallel([
-        Animated.timing(fadeAnim, {toValue: 1, duration: 500, useNativeDriver: true}),
-        Animated.spring(scaleAnim, {toValue: 1, friction: 6, tension: 80, useNativeDriver: true}),
-      ]).start();
+    if (!submitted || !submittedByUpload.current) return;
 
-      const timer = setTimeout(() => {
-        resetForm();
-        tabEmitter.emit('switchTab', 0); // ← go to Dashboard
-      }, 2600);
+    Animated.parallel([
+      Animated.timing(fadeAnim, {toValue: 1, duration: 500, useNativeDriver: true}),
+      Animated.spring(scaleAnim, {toValue: 1, friction: 6, tension: 80, useNativeDriver: true}),
+    ]).start();
 
-      return () => clearTimeout(timer);
-    }
+    const timer = setTimeout(() => {
+      submittedByUpload.current = false;
+      resetForm();
+      tabEmitter.emit('switchTab', 0);
+    }, 2600);
+
+    return () => clearTimeout(timer);
   }, [submitted]);
 
   const selectSearchResult = (item: any) => {
@@ -413,12 +426,18 @@ export default function UploadCertificateScreen() {
   const pickFromGallery = async () => {
   const ok = await requestMediaPermission();
   if (!ok) return;
-  const result = await launchImageLibrary({
-    mediaType: 'photo',
-    quality: 1,
-    selectionLimit: 1,
-    presentationStyle: 'pageSheet',
-  });
+  isPicking.current = true;
+  let result;
+  try {
+    result = await launchImageLibrary({
+      mediaType: 'photo',
+      quality: 1,
+      selectionLimit: 1,
+      presentationStyle: 'pageSheet',
+    });
+  } finally {
+    isPicking.current = false;
+  }
   if (result.didCancel || !result.assets?.length) return;
 
   // Delay state changes until picker sheet animation fully completes
@@ -438,13 +457,19 @@ export default function UploadCertificateScreen() {
 const pickFromCamera = async () => {
   const ok = await requestCameraPermission();
   if (!ok) return;
-  const result = await launchCamera({
-    mediaType: 'photo',
-    quality: 1,
-    saveToPhotos: false,
-    includeBase64: false,
-    cameraType: 'back',
-  });
+  isPicking.current = true;
+  let result;
+  try {
+    result = await launchCamera({
+      mediaType: 'photo',
+      quality: 1,
+      saveToPhotos: false,
+      includeBase64: false,
+      cameraType: 'back',
+    });
+  } finally {
+    isPicking.current = false;
+  }
   if (result.didCancel || !result.assets?.length) return;
 
   // Same delay — camera dismissal animation needs to settle
@@ -540,6 +565,7 @@ const canSubmit = isOthers
         headers: {'Content-Type': 'multipart/form-data'},
       });
       await clearTempCache();
+      submittedByUpload.current = true; // mark as intentional before triggering the effect
       setSubmitted(true);
     } catch (err) {
       Alert.alert('Upload Failed', 'Please check your connection and try again.');

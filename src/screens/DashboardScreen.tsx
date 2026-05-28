@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Pressable,
   RefreshControl,
   ActivityIndicator,
   Image,
@@ -134,6 +135,7 @@ export default function DashboardScreen() {
     [userName],
   );
   const currentPhoto = useMemo(() => photoUrl(user?.profilePhoto), [user?.profilePhoto]);
+  const [photoExpanded, setPhotoExpanded] = useState(false);
 
   // Only keep 5 items — avoids rendering the full list
   const recentActivities = useMemo(() => certificates.slice(0, 5), [certificates]);
@@ -196,21 +198,24 @@ export default function DashboardScreen() {
           />
         }>
 
-        {/* ── Header ── */}
+        {/* Header */}
         <View style={styles.header}>
           <View style={styles.avatarGroup}>
-            {currentPhoto ? (
-              <Image
-                source={{uri: currentPhoto}}
-                style={[styles.avatar, styles.avatarImage]}
-                // Cache image aggressively
-                fadeDuration={0}
-              />
-            ) : (
-              <View style={[styles.avatar, {backgroundColor: colors.primary}]}>
-                <Text style={styles.avatarText}>{initials}</Text>
-              </View>
-            )}
+            <TouchableOpacity
+              onPress={() => currentPhoto ? setPhotoExpanded(true) : navigation.navigate('Profile')}
+              activeOpacity={0.8}>
+              {currentPhoto ? (
+                <Image
+                  source={{uri: currentPhoto}}
+                  style={[styles.avatar, styles.avatarImage]}
+                  fadeDuration={0}
+                />
+              ) : (
+                <View style={[styles.avatar, {backgroundColor: colors.primary}]}>
+                  <Text style={styles.avatarText}>{initials}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
             <View>
               <Text style={[styles.helloText, {color: colors.text}]}>Hello, {userName}</Text>
               <Text style={[styles.welcomeText, {color: colors.textMuted}]}>Welcome back!</Text>
@@ -309,7 +314,7 @@ export default function DashboardScreen() {
         </View>
       </ScrollView>
 
-      {/* ── 3-dot dropdown menu ── */}
+      {/* 3-dot dropdown menu */}
       {menuVisible && (
         <Modal transparent animationType="none" onRequestClose={() => closeMenu()}>
           <TouchableOpacity
@@ -347,9 +352,41 @@ export default function DashboardScreen() {
           </RNAnimated.View>
         </Modal>
       )}
+
+      {/* Photo viewer (WhatsApp-style fullscreen) */}
+      <Modal
+        visible={photoExpanded}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setPhotoExpanded(false)}>
+        <Pressable
+          style={photoModalStyles.backdrop}
+          onPress={() => setPhotoExpanded(false)}>
+          <Image
+            source={{uri: currentPhoto ?? ''}}
+            style={photoModalStyles.image}
+            resizeMode="contain"
+          />
+        </Pressable>
+      </Modal>
     </View>
   );
 }
+
+const photoModalStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  image: {
+    width: '94%',
+    height: '94%',
+    borderRadius: 4,
+  },
+});
 
 const styles = StyleSheet.create({
   safeArea: {flex: 1},

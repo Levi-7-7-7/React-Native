@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   TouchableOpacity,
+  Pressable,
   Modal,
   ScrollView,
   Animated,
@@ -241,10 +242,12 @@ const StudentCard = React.memo(({
   item,
   colors,
   onPress,
+  onAvatarPress,
 }: {
   item: Student;
   colors: any;
   onPress: () => void;
+  onAvatarPress: (uri: string) => void;
 }) => {
   const batchName  = getBatchName(item.batch);
   const branchName = getBranchName(item.branch);
@@ -258,13 +261,17 @@ const StudentCard = React.memo(({
       onPress={onPress}
       activeOpacity={0.75}>
       <View style={styles.cardTop}>
-        <View style={styles.avatarSmall}>
+        <TouchableOpacity
+          style={styles.avatarSmall}
+          onPress={item.profilePhoto ? (e) => { e.stopPropagation?.(); onAvatarPress(item.profilePhoto!); } : undefined}
+          activeOpacity={item.profilePhoto ? 0.75 : 1}
+          disabled={!item.profilePhoto}>
           {item.profilePhoto ? (
             <Image source={{uri: item.profilePhoto}} style={styles.avatarSmallImage} fadeDuration={0} />
           ) : (
             <Text style={styles.avatarSmallText}>{initials}</Text>
           )}
-        </View>
+        </TouchableOpacity>
         <View style={styles.cardInfo}>
           <Text style={[styles.studentName, {color: colors.text}]}>{item.name}</Text>
           <Text style={[styles.regNo, {color: colors.textMuted}]}>{item.registerNumber}</Text>
@@ -309,6 +316,7 @@ export default function TutorStudentsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [expandedPhotoUri, setExpandedPhotoUri] = useState<string | null>(null);
 
   const [sortKey, setSortKey] = useState<SortKey>('registerNumber');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
@@ -436,13 +444,18 @@ export default function TutorStudentsScreen() {
     }
   }, [displayedStudents]);
 
+  const handleAvatarPress = useCallback((uri: string) => {
+    setExpandedPhotoUri(uri);
+  }, []);
+
   const renderItem = useCallback(({item}: {item: Student}) => (
     <StudentCard
       item={item}
       colors={colors}
       onPress={() => navigation.navigate('TutorStudentDetails', {student: item})}
+      onAvatarPress={handleAvatarPress}
     />
-  ), [colors, navigation]);
+  ), [colors, navigation, handleAvatarPress]);
 
   const keyExtractor = useCallback((item: Student) => item._id, []);
 
@@ -637,9 +650,40 @@ export default function TutorStudentsScreen() {
           </View>
         </TouchableOpacity>
       </Modal>
+      {/* Student photo viewer */}
+      <Modal
+        visible={!!expandedPhotoUri}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setExpandedPhotoUri(null)}>
+        <Pressable
+          style={studentPhotoModalStyles.backdrop}
+          onPress={() => setExpandedPhotoUri(null)}>
+          <Image
+            source={{uri: expandedPhotoUri ?? ''}}
+            style={studentPhotoModalStyles.image}
+            resizeMode="contain"
+          />
+        </Pressable>
+      </Modal>
     </View>
   );
 }
+
+const studentPhotoModalStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  image: {
+    width: '94%',
+    height: '94%',
+    borderRadius: 4,
+  },
+});
 
 const styles = StyleSheet.create({
   container: {flex: 1, paddingHorizontal: 16, paddingTop: 12},

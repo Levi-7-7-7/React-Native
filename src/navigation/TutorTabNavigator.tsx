@@ -12,6 +12,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Pressable,
   Platform,
   Dimensions,
   Alert,
@@ -62,6 +63,7 @@ export default function TutorTabNavigator() {
   const insets = useSafeAreaInsets();
   const [tutorName, setTutorName] = useState('Tutor');
   const [tutorPhoto, setTutorPhoto] = useState<string | null>(null);
+  const [photoExpanded, setPhotoExpanded] = useState(false);
   const [containerWidth, setContainerWidth] = useState(
     Dimensions.get('window').width,
   );
@@ -209,7 +211,7 @@ export default function TutorTabNavigator() {
 
   return (
     <View style={[styles.root, {backgroundColor: colors.bg}]}>
-      {/* ── Header ── */}
+      {/* Header */}
       <View
         style={[
           styles.header,
@@ -223,7 +225,7 @@ export default function TutorTabNavigator() {
         <View style={styles.headerLeft}>
           <TouchableOpacity
             style={styles.avatar}
-            onPress={() => navigation.navigate('TutorProfile')}
+            onPress={() => tutorPhoto ? setPhotoExpanded(true) : navigation.navigate('TutorProfile')}
             activeOpacity={0.8}>
             {tutorPhoto ? (
               <Image
@@ -244,7 +246,7 @@ export default function TutorTabNavigator() {
           </View>
         </View>
 
-        {/* ── Three-dot menu button ── */}
+        {/* Three-dot menu button */}
         <TouchableOpacity
           style={styles.menuBtn}
           onPress={showMenu}
@@ -253,7 +255,7 @@ export default function TutorTabNavigator() {
         </TouchableOpacity>
       </View>
 
-      {/* ── Dropdown menu modal ── */}
+      {/* Dropdown menu modal */}
       <Modal
         visible={menuVisible}
         transparent
@@ -305,7 +307,7 @@ export default function TutorTabNavigator() {
         </TouchableOpacity>
       </Modal>
 
-      {/* ── Swipeable content ── */}
+      {/* Swipeable content */}
       <View
         style={[styles.content, {marginTop: HEADER_HEIGHT}]}
         onLayout={e => {
@@ -342,7 +344,7 @@ export default function TutorTabNavigator() {
           </Animated.View>
         </GestureDetector>
 
-        {/* ── Tab bar ── */}
+        {/* Tab bar */}
         <View
           style={[
             styles.tabBar,
@@ -385,6 +387,23 @@ export default function TutorTabNavigator() {
           ))}
         </View>
       </View>
+      {/* Photo viewer modal */}
+      <Modal
+        visible={photoExpanded}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setPhotoExpanded(false)}>
+        <Pressable
+          style={styles.photoModalBackdrop}
+          onPress={() => setPhotoExpanded(false)}>
+          <Image
+            source={{uri: tutorPhoto ?? ''}}
+            style={styles.photoModalImage}
+            resizeMode="contain"
+          />
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -583,4 +602,15 @@ const styles = StyleSheet.create({
     minWidth: 50,
   },
   tabLabel: {fontSize: 10, fontWeight: '600', textAlign: 'center'},
+  photoModalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoModalImage: {
+    width: '94%',
+    height: '94%',
+    borderRadius: 4,
+  },
 });

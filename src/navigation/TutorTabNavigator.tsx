@@ -5,7 +5,7 @@
  *   - Header with avatar, greeting, logout
  *   - Swipeable content area
  *   - Bottom tab bar
- *   - WhatsApp-style profile image zoom
+ *   - react-native-image-viewing for profile image zoom (same as ProfileScreen)
  */
 
 import React, {useCallback, useState, useEffect, useRef} from 'react';
@@ -33,6 +33,8 @@ import {
   Gesture,
   GestureDetector,
 } from 'react-native-gesture-handler';
+
+import ImageViewing from 'react-native-image-viewing';
 
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
@@ -92,7 +94,8 @@ export default function TutorTabNavigator() {
   const [tutorName, setTutorName] = useState('Tutor');
   const [tutorPhoto, setTutorPhoto] = useState<string | null>(null);
 
-  const [photoExpanded, setPhotoExpanded] = useState(false);
+  const [viewerVisible, setViewerVisible] = useState(false);
+  const [viewerImages, setViewerImages] = useState<{uri: string}[]>([]);
 
   const [containerWidth, setContainerWidth] = useState(
     Dimensions.get('window').width,
@@ -111,16 +114,6 @@ export default function TutorTabNavigator() {
   const translateX = useSharedValue(0);
   const currentIndexSV = useSharedValue(0);
   const progress = useSharedValue(0);
-
-  // WhatsApp-style image zoom
-  const imageScale = useSharedValue(1);
-  const savedScale = useSharedValue(1);
-
-  const imageTranslateX = useSharedValue(0);
-  const imageTranslateY = useSharedValue(0);
-
-  const savedTranslateX = useSharedValue(0);
-  const savedTranslateY = useSharedValue(0);
 
   const TAB_BAR_HEIGHT =
     Platform.OS === 'android'
@@ -144,9 +137,7 @@ export default function TutorTabNavigator() {
 
       setTutorPhoto(data?.profilePhoto ?? null);
     } catch {
-      const n = await AsyncStorage.getItem(
-        'tutorName',
-      );
+      const n = await AsyncStorage.getItem('tutorName');
 
       if (n) {
         setTutorName(n);
@@ -220,16 +211,10 @@ export default function TutorTabNavigator() {
     }, 200);
   };
 
-  const resetImageZoom = () => {
-    imageScale.value = 1;
-    savedScale.value = 1;
-
-    imageTranslateX.value = 0;
-    imageTranslateY.value = 0;
-
-    savedTranslateX.value = 0;
-    savedTranslateY.value = 0;
-  };
+  const openImageViewer = useCallback((uri: string) => {
+    setViewerImages([{uri}]);
+    setViewerVisible(true);
+  }, []);
 
   const snapToIndex = useCallback(
     (index: number, width: number) => {
@@ -257,8 +242,7 @@ export default function TutorTabNavigator() {
 
   const goToTab = useCallback(
     (index: number) => {
-      const width =
-        Dimensions.get('window').width;
+      const width = Dimensions.get('window').width;
 
       snapToIndex(index, width);
     },
@@ -271,15 +255,13 @@ export default function TutorTabNavigator() {
     .onUpdate(event => {
       'worklet';
 
-      const base =
-        -currentIndexSV.value * containerWidth;
+      const base = -currentIndexSV.value * containerWidth;
 
       let drag = event.translationX;
 
       const projected = base + drag;
 
-      const minX =
-        -(TAB_COUNT - 1) * containerWidth;
+      const minX = -(TAB_COUNT - 1) * containerWidth;
 
       if (projected > 0) {
         drag = drag * 0.15;
@@ -289,160 +271,40 @@ export default function TutorTabNavigator() {
 
       translateX.value = base + drag;
 
-      progress.value =
-        -translateX.value / containerWidth;
+      progress.value = -translateX.value / containerWidth;
     })
     .onEnd(event => {
       'worklet';
 
-      const {
-        translationX: tx,
-        velocityX: vx,
-      } = event;
+      const {translationX: tx, velocityX: vx} = event;
 
       let targetIndex = currentIndexSV.value;
 
-      if (
-        vx < -500 ||
-        tx < -containerWidth * 0.3
-      ) {
-        targetIndex =
-          currentIndexSV.value + 1;
-      } else if (
-        vx > 500 ||
-        tx > containerWidth * 0.3
-      ) {
-        targetIndex =
-          currentIndexSV.value - 1;
+      if (vx < -500 || tx < -containerWidth * 0.3) {
+        targetIndex = currentIndexSV.value + 1;
+      } else if (vx > 500 || tx > containerWidth * 0.3) {
+        targetIndex = currentIndexSV.value - 1;
       }
 
-      snapToIndex(
-        targetIndex,
-        containerWidth,
-      );
+      snapToIndex(targetIndex, containerWidth);
     });
 
-  // IMAGE GESTURES
+  const rowAnimStyle = useAnimatedStyle(() => ({
+    transform: [
+      {
+        translateX: translateX.value,
+      },
+    ],
+  }));
 
-  const pinchGesture = Gesture.Pinch()
-    .onUpdate(e => {
-      const nextScale =
-        savedScale.value * e.scale;
-
-      imageScale.value = Math.max(
-        1,
-        Math.min(nextScale, 4),
-      );
-    })
-    .onEnd(() => {
-      savedScale.value = imageScale.value;
-
-      if (imageScale.value <= 1) {
-        imageScale.value = withSpring(1);
-
-        imageTranslateX.value =
-          withSpring(0);
-
-        imageTranslateY.value =
-          withSpring(0);
-
-        savedScale.value = 1;
-
-        savedTranslateX.value = 0;
-        savedTranslateY.value = 0;
-      }
-    });
-
-  const imagePanGesture = Gesture.Pan()
-    .onUpdate(e => {
-      if (imageScale.value > 1) {
-        imageTranslateX.value =
-          savedTranslateX.value +
-          e.translationX;
-
-        imageTranslateY.value =
-          savedTranslateY.value +
-          e.translationY;
-      }
-    })
-    .onEnd(() => {
-      savedTranslateX.value =
-        imageTranslateX.value;
-
-      savedTranslateY.value =
-        imageTranslateY.value;
-    });
-
-  const doubleTapGesture = Gesture.Tap()
-    .numberOfTaps(2)
-    .maxDuration(250)
-    .onEnd(() => {
-      if (imageScale.value > 1) {
-        imageScale.value =
-          withSpring(1);
-
-        imageTranslateX.value =
-          withSpring(0);
-
-        imageTranslateY.value =
-          withSpring(0);
-
-        savedScale.value = 1;
-
-        savedTranslateX.value = 0;
-        savedTranslateY.value = 0;
-      } else {
-        imageScale.value =
-          withSpring(2.2);
-
-        savedScale.value = 2.2;
-      }
-    });
-
-  const imageGesture =
-    Gesture.Simultaneous(
-      pinchGesture,
-      imagePanGesture,
-      doubleTapGesture,
-    );
-
-  const imageAnimatedStyle =
-    useAnimatedStyle(() => ({
-      transform: [
-        {
-          translateX:
-            imageTranslateX.value,
-        },
-        {
-          translateY:
-            imageTranslateY.value,
-        },
-        {
-          scale: imageScale.value,
-        },
-      ],
-    }));
-
-  const rowAnimStyle =
-    useAnimatedStyle(() => ({
-      transform: [
-        {
-          translateX: translateX.value,
-        },
-      ],
-    }));
-
-  const indicatorAnimStyle =
-    useAnimatedStyle(() => ({
-      transform: [
-        {
-          translateX:
-            (progress.value *
-              containerWidth) /
-            TAB_COUNT,
-        },
-      ],
-    }));
+  const indicatorAnimStyle = useAnimatedStyle(() => ({
+    transform: [
+      {
+        translateX:
+          (progress.value * containerWidth) / TAB_COUNT,
+      },
+    ],
+  }));
 
   const HEADER_HEIGHT = 72 + insets.top;
 
@@ -454,17 +316,14 @@ export default function TutorTabNavigator() {
           backgroundColor: colors.bg,
         },
       ]}>
-      {/* Header */}
-
+      {/* ── Header ── */}
       <View
         style={[
           styles.header,
           {
             backgroundColor: colors.card,
-            borderBottomColor:
-              colors.border,
-            paddingTop:
-              insets.top + 12,
+            borderBottomColor: colors.border,
+            paddingTop: insets.top + 12,
             height: HEADER_HEIGHT,
           },
         ]}>
@@ -474,27 +333,18 @@ export default function TutorTabNavigator() {
             activeOpacity={0.8}
             onPress={() => {
               if (tutorPhoto) {
-                setPhotoExpanded(true);
+                openImageViewer(tutorPhoto);
               } else {
-                navigation.navigate(
-                  'TutorProfile',
-                );
+                navigation.navigate('TutorProfile');
               }
             }}>
             {tutorPhoto ? (
               <Image
-                source={{
-                  uri: tutorPhoto,
-                }}
-                style={
-                  styles.avatarImage
-                }
+                source={{uri: tutorPhoto}}
+                style={styles.avatarImage}
               />
             ) : (
-              <Text
-                style={
-                  styles.avatarText
-                }>
+              <Text style={styles.avatarText}>
                 {avatarInitials}
               </Text>
             )}
@@ -504,10 +354,7 @@ export default function TutorTabNavigator() {
             <Text
               style={[
                 styles.welcomeText,
-                {
-                  color:
-                    colors.primary,
-                },
+                {color: colors.primary},
               ]}>
               Welcome, {tutorName}!
             </Text>
@@ -515,13 +362,9 @@ export default function TutorTabNavigator() {
             <Text
               style={[
                 styles.welcomeSub,
-                {
-                  color:
-                    colors.textMuted,
-                },
+                {color: colors.textMuted},
               ]}>
-              Manage students &
-              certificates
+              Manage students & certificates
             </Text>
           </View>
         </View>
@@ -538,8 +381,7 @@ export default function TutorTabNavigator() {
         </TouchableOpacity>
       </View>
 
-      {/* MENU */}
-
+      {/* ── Dropdown Menu ── */}
       <Modal
         visible={menuVisible}
         transparent
@@ -553,73 +395,42 @@ export default function TutorTabNavigator() {
             style={[
               styles.menuDropdown,
               {
-                backgroundColor:
-                  colors.card,
+                backgroundColor: colors.card,
                 shadowColor: '#000',
                 opacity: menuAnim,
                 transform: [
                   {
-                    scale:
-                      menuAnim.interpolate(
-                        {
-                          inputRange: [
-                            0,
-                            1,
-                          ],
-                          outputRange: [
-                            0.92,
-                            1,
-                          ],
-                        },
-                      ),
+                    scale: menuAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.92, 1],
+                    }),
                   },
                   {
-                    translateY:
-                      menuAnim.interpolate(
-                        {
-                          inputRange: [
-                            0,
-                            1,
-                          ],
-                          outputRange: [
-                            -8,
-                            0,
-                          ],
-                        },
-                      ),
+                    translateY: menuAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-8, 0],
+                    }),
                   },
                 ],
               },
             ]}
-            onStartShouldSetResponder={() =>
-              true
-            }>
+            onStartShouldSetResponder={() => true}>
             <TouchableOpacity
               style={[
                 styles.menuItem,
-                {
-                  borderBottomColor:
-                    colors.border,
-                },
+                {borderBottomColor: colors.border},
               ]}
-              onPress={
-                handleViewProfile
-              }>
+              onPress={handleViewProfile}>
               <Icon
                 name="account-circle-outline"
                 size={20}
-                color={
-                  colors.primary
-                }
+                color={colors.primary}
               />
 
               <Text
                 style={[
                   styles.menuItemText,
-                  {
-                    color:
-                      colors.text,
-                  },
+                  {color: colors.text},
                 ]}>
                 View Profile
               </Text>
@@ -637,10 +448,7 @@ export default function TutorTabNavigator() {
               <Text
                 style={[
                   styles.menuItemText,
-                  {
-                    color:
-                      '#ef4444',
-                  },
+                  {color: '#ef4444'},
                 ]}>
                 Logout
               </Text>
@@ -649,55 +457,41 @@ export default function TutorTabNavigator() {
         </TouchableOpacity>
       </Modal>
 
-      {/* CONTENT */}
-
+      {/* ── Content ── */}
       <View
         style={[
           styles.content,
-          {
-            marginTop:
-              HEADER_HEIGHT,
-          },
+          {marginTop: HEADER_HEIGHT},
         ]}
         onLayout={e => {
-          const w =
-            e.nativeEvent.layout.width;
+          const w = e.nativeEvent.layout.width;
 
           setContainerWidth(w);
 
-          translateX.value =
-            -currentIndexSV.value * w;
+          translateX.value = -currentIndexSV.value * w;
         }}>
         <GestureDetector gesture={pan}>
           <Animated.View
             style={[
               styles.row,
               {
-                width:
-                  containerWidth *
-                  TAB_COUNT,
-                paddingBottom:
-                  TAB_BAR_HEIGHT,
-                backgroundColor:
-                  colors.bg,
+                width: containerWidth * TAB_COUNT,
+                paddingBottom: TAB_BAR_HEIGHT,
+                backgroundColor: colors.bg,
               },
               rowAnimStyle,
             ]}>
             {TABS.map(tab => {
-              const Comp =
-                tab.component;
+              const Comp = tab.component;
 
               return (
                 <View
                   key={tab.name}
                   style={{
-                    width:
-                      containerWidth,
-                    overflow:
-                      'hidden',
+                    width: containerWidth,
+                    overflow: 'hidden',
                     height: '100%',
-                    backgroundColor:
-                      colors.bg,
+                    backgroundColor: colors.bg,
                   }}>
                   <Comp />
                 </View>
@@ -706,35 +500,24 @@ export default function TutorTabNavigator() {
           </Animated.View>
         </GestureDetector>
 
-        {/* TAB BAR */}
-
+        {/* ── Tab Bar ── */}
         <View
           style={[
             styles.tabBar,
             {
-              backgroundColor:
-                colors.card,
-              borderTopColor:
-                colors.border,
-              height:
-                TAB_BAR_HEIGHT,
-              paddingBottom:
-                insets.bottom,
+              backgroundColor: colors.card,
+              borderTopColor: colors.border,
+              height: TAB_BAR_HEIGHT,
+              paddingBottom: insets.bottom,
             },
           ]}>
-          <View
-            style={
-              styles.indicatorTrack
-            }>
+          <View style={styles.indicatorTrack}>
             <Animated.View
               style={[
                 styles.indicator,
                 {
-                  width:
-                    containerWidth /
-                    TAB_COUNT,
-                  backgroundColor:
-                    colors.primary,
+                  width: containerWidth / TAB_COUNT,
+                  backgroundColor: colors.primary,
                 },
                 indicatorAnimStyle,
               ]}
@@ -748,17 +531,9 @@ export default function TutorTabNavigator() {
               index={i}
               progress={progress}
               colors={colors}
-              badge={
-                tab.name ===
-                'Pending'
-                  ? pendingBadge
-                  : 0
-              }
+              badge={tab.name === 'Pending' ? pendingBadge : 0}
               onPress={() => {
-                if (
-                  tab.name ===
-                  'Pending'
-                ) {
+                if (tab.name === 'Pending') {
                   setPendingBadge(0);
                 }
 
@@ -769,61 +544,40 @@ export default function TutorTabNavigator() {
         </View>
       </View>
 
-      {/* PHOTO VIEWER */}
-
-      <Modal
-        visible={photoExpanded}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={() => {
-          setPhotoExpanded(false);
-          resetImageZoom();
-        }}>
-        <View style={styles.photoModalBackdrop}>
-          {/* Close button */}
-          <TouchableOpacity
-            activeOpacity={0.8}
-            style={styles.closeBtn}
-            onPress={() => {
-              setPhotoExpanded(false);
-              resetImageZoom();
-            }}>
-            <Icon
-              name="close"
-              size={28}
-              color="#fff"
-            />
-          </TouchableOpacity>
-
-          {/* Zoomable image */}
-          <GestureDetector gesture={imageGesture}>
-            <Animated.View
-              style={[
-                styles.zoomContainer,
-                imageAnimatedStyle,
-              ]}>
-              <Image
-                source={{
-                  uri: tutorPhoto ?? '',
-                }}
-                style={styles.photoModalImage}
-                resizeMode="contain"
-              />
-            </Animated.View>
-          </GestureDetector>
-
-          {/* Hint footer */}
-          <View style={styles.hintContainer} pointerEvents="none">
-            <Text style={styles.hintText}>
+      {/* ── Zoomable Photo Viewer (react-native-image-viewing) ── */}
+      <ImageViewing
+        images={viewerImages}
+        imageIndex={0}
+        visible={viewerVisible}
+        onRequestClose={() => setViewerVisible(false)}
+        swipeToCloseEnabled
+        doubleTapToZoomEnabled
+        presentationStyle="fullScreen"
+        backgroundColor="#000"
+        HeaderComponent={() => (
+          <View style={viewerStyles.header}>
+            <TouchableOpacity
+              style={viewerStyles.closeBtn}
+              onPress={() => setViewerVisible(false)}>
+              <Icon name="close" size={22} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        )}
+        FooterComponent={() => (
+          <View style={viewerStyles.hintContainer}>
+            <Text style={viewerStyles.hintText}>
               Pinch or double tap to zoom
             </Text>
           </View>
-        </View>
-      </Modal>
+        )}
+      />
     </View>
   );
 }
+
+// ─────────────────────────────────────────────────────────────
+// Animated Tab Item
+// ─────────────────────────────────────────────────────────────
 
 function AnimatedTabItem({
   tab,
@@ -833,37 +587,21 @@ function AnimatedTabItem({
   badge,
   onPress,
 }: any) {
-  const activeStyle =
-    useAnimatedStyle(() => {
-      const d = Math.abs(
-        progress.value - index,
-      );
+  const activeStyle = useAnimatedStyle(() => {
+    const d = Math.abs(progress.value - index);
 
-      return {
-        opacity: interpolate(
-          d,
-          [0, 0.5],
-          [1, 0],
-          'clamp',
-        ),
-      };
-    });
+    return {
+      opacity: interpolate(d, [0, 0.5], [1, 0], 'clamp'),
+    };
+  });
 
-  const inactiveStyle =
-    useAnimatedStyle(() => {
-      const d = Math.abs(
-        progress.value - index,
-      );
+  const inactiveStyle = useAnimatedStyle(() => {
+    const d = Math.abs(progress.value - index);
 
-      return {
-        opacity: interpolate(
-          d,
-          [0, 0.5],
-          [0, 1],
-          'clamp',
-        ),
-      };
-    });
+    return {
+      opacity: interpolate(d, [0, 0.5], [0, 1], 'clamp'),
+    };
+  });
 
   return (
     <TouchableOpacity
@@ -877,11 +615,7 @@ function AnimatedTabItem({
             styles.iconCenter,
             activeStyle,
           ]}>
-          <Icon
-            name={tab.icon}
-            size={22}
-            color={colors.primary}
-          />
+          <Icon name={tab.icon} size={22} color={colors.primary} />
         </Animated.View>
 
         <Animated.View
@@ -890,24 +624,13 @@ function AnimatedTabItem({
             styles.iconCenter,
             inactiveStyle,
           ]}>
-          <Icon
-            name={tab.icon}
-            size={22}
-            color={
-              colors.textMuted
-            }
-          />
+          <Icon name={tab.icon} size={22} color={colors.textMuted} />
         </Animated.View>
 
         {badge > 0 && (
           <View style={styles.badge}>
-            <Text
-              style={
-                styles.badgeText
-              }>
-              {badge > 9
-                ? '9+'
-                : badge}
+            <Text style={styles.badgeText}>
+              {badge > 9 ? '9+' : badge}
             </Text>
           </View>
         )}
@@ -917,12 +640,7 @@ function AnimatedTabItem({
         <Animated.Text
           style={[
             styles.tabLabel,
-            {
-              color:
-                colors.primary,
-              position:
-                'absolute',
-            },
+            {color: colors.primary, position: 'absolute'},
             activeStyle,
           ]}>
           {tab.name}
@@ -931,12 +649,7 @@ function AnimatedTabItem({
         <Animated.Text
           style={[
             styles.tabLabel,
-            {
-              color:
-                colors.textMuted,
-              position:
-                'absolute',
-            },
+            {color: colors.textMuted, position: 'absolute'},
             inactiveStyle,
           ]}>
           {tab.name}
@@ -945,6 +658,48 @@ function AnimatedTabItem({
     </TouchableOpacity>
   );
 }
+
+// ─────────────────────────────────────────────────────────────
+// Styles
+// ─────────────────────────────────────────────────────────────
+
+const viewerStyles = StyleSheet.create({
+  header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+    paddingTop: Platform.OS === 'ios' ? 58 : 24,
+    paddingHorizontal: 18,
+    paddingBottom: 16,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.25)',
+  },
+  closeBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hintContainer: {
+    position: 'absolute',
+    bottom: 42,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  hintText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+});
 
 const styles = StyleSheet.create({
   root: {
@@ -959,8 +714,7 @@ const styles = StyleSheet.create({
 
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent:
-      'space-between',
+    justifyContent: 'space-between',
 
     paddingHorizontal: 16,
     paddingBottom: 12,
@@ -970,10 +724,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
 
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.06,
     shadowRadius: 4,
 
@@ -1045,11 +796,7 @@ const styles = StyleSheet.create({
 
     minWidth: 180,
 
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-
+    shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.15,
     shadowRadius: 12,
 
@@ -1103,11 +850,7 @@ const styles = StyleSheet.create({
     elevation: 8,
 
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: -2,
-    },
-
+    shadowOffset: {width: 0, height: -2},
     shadowOpacity: 0.06,
     shadowRadius: 4,
   },
@@ -1185,63 +928,5 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     textAlign: 'center',
-  },
-
-  photoModalBackdrop: {
-    flex: 1,
-
-    backgroundColor:
-      'rgba(0,0,0,0.95)',
-
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  zoomContainer: {
-    flex: 1,
-    width: '100%',
-
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  photoModalImage: {
-    width: '100%',
-    height: '100%',
-  },
-
-  closeBtn: {
-    position: 'absolute',
-    top: 55,
-    right: 20,
-
-    zIndex: 100,
-
-    width: 42,
-    height: 42,
-
-    borderRadius: 21,
-
-    backgroundColor:
-      'rgba(0,0,0,0.45)',
-
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  hintContainer: {
-    position: 'absolute',
-    bottom: 42,
-    alignSelf: 'center',
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-  },
-
-  hintText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
   },
 });

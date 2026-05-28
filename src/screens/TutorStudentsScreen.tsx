@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
   RefreshControl,
   TouchableOpacity,
-  Pressable,
   Modal,
   ScrollView,
   Animated,
@@ -20,9 +19,12 @@ import {
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {generatePDF} from 'react-native-html-to-pdf';
 import {useNavigation} from '@react-navigation/native';
+import ImageViewing from 'react-native-image-viewing';
 import tutorAxios from '../api/tutorAxios';
 import {useTheme} from '../theme';
 import {calcCappedPoints, passThreshold} from '../utils/calcPoints';
+
+const ENLARGED_AVATAR_SIZE = 54;
 
 const logoPath = Image.resolveAssetSource(
   require('../assets/mti-logo.png'),
@@ -548,7 +550,6 @@ export default function TutorStudentsScreen() {
         renderItem={renderItem}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
-        // Performance: only render what's visible + a small buffer
         windowSize={5}
         maxToRenderPerBatch={10}
         updateCellsBatchingPeriod={50}
@@ -572,6 +573,7 @@ export default function TutorStudentsScreen() {
         }
       />
 
+      {/* SORT MODAL */}
       <Modal visible={sortModalVisible} transparent animationType="slide" onRequestClose={() => setSortModalVisible(false)}>
         <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setSortModalVisible(false)}>
           <View style={[styles.bottomSheet, {backgroundColor: colors.card}]} onStartShouldSetResponder={() => true}>
@@ -604,6 +606,7 @@ export default function TutorStudentsScreen() {
         </TouchableOpacity>
       </Modal>
 
+      {/* FILTER MODAL */}
       <Modal visible={filterModalVisible} transparent animationType="slide" onRequestClose={() => setFilterModalVisible(false)}>
         <TouchableOpacity style={styles.modalBackdrop} activeOpacity={1} onPress={() => setFilterModalVisible(false)}>
           <View style={[styles.bottomSheet, {backgroundColor: colors.card}]} onStartShouldSetResponder={() => true}>
@@ -650,38 +653,71 @@ export default function TutorStudentsScreen() {
           </View>
         </TouchableOpacity>
       </Modal>
-      {/* Student photo viewer */}
-      <Modal
+
+      {/* ZOOMABLE PHOTO VIEWER */}
+      <ImageViewing
+        images={expandedPhotoUri ? [{uri: expandedPhotoUri}] : []}
+        imageIndex={0}
         visible={!!expandedPhotoUri}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={() => setExpandedPhotoUri(null)}>
-        <Pressable
-          style={studentPhotoModalStyles.backdrop}
-          onPress={() => setExpandedPhotoUri(null)}>
-          <Image
-            source={{uri: expandedPhotoUri ?? ''}}
-            style={studentPhotoModalStyles.image}
-            resizeMode="contain"
-          />
-        </Pressable>
-      </Modal>
+        onRequestClose={() => setExpandedPhotoUri(null)}
+        swipeToCloseEnabled
+        doubleTapToZoomEnabled
+        presentationStyle="fullScreen"
+        backgroundColor="#000"
+        HeaderComponent={() => (
+          <View style={viewerStyles.header}>
+            <TouchableOpacity
+              style={viewerStyles.closeBtn}
+              onPress={() => setExpandedPhotoUri(null)}>
+              <Icon name="close" size={22} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        )}
+        FooterComponent={() => (
+          <View style={viewerStyles.hintContainer}>
+            <Text style={viewerStyles.hintText}>Pinch or double tap to zoom</Text>
+          </View>
+        )}
+      />
     </View>
   );
 }
 
-const studentPhotoModalStyles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.92)',
+const viewerStyles = StyleSheet.create({
+  header: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+    paddingTop: Platform.OS === 'ios' ? 58 : 24,
+    paddingHorizontal: 18,
+    paddingBottom: 16,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.25)',
+  },
+  closeBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: 'rgba(255,255,255,0.18)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  image: {
-    width: '94%',
-    height: '94%',
-    borderRadius: 4,
+  hintContainer: {
+    position: 'absolute',
+    bottom: 42,
+    alignSelf: 'center',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  hintText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
 
@@ -705,8 +741,8 @@ const styles = StyleSheet.create({
   list: {paddingBottom: 24},
   card: {borderRadius: 14, borderWidth: 1, padding: 14, marginBottom: 12},
   cardTop: {flexDirection: 'row', alignItems: 'center'},
-  avatarSmall: {width: 38, height: 38, borderRadius: 19, backgroundColor: '#f1f5f9', justifyContent: 'center', alignItems: 'center', marginRight: 12, overflow: 'hidden'},
-  avatarSmallImage: {width: 38, height: 38, borderRadius: 19},
+  avatarSmall: {width: ENLARGED_AVATAR_SIZE, height: ENLARGED_AVATAR_SIZE, borderRadius: ENLARGED_AVATAR_SIZE / 2, backgroundColor: '#f1f5f9', justifyContent: 'center', alignItems: 'center', marginRight: 12, overflow: 'hidden'},
+  avatarSmallImage: {width: ENLARGED_AVATAR_SIZE, height: ENLARGED_AVATAR_SIZE, borderRadius: ENLARGED_AVATAR_SIZE / 2},
   avatarSmallText: {fontSize: 13, fontWeight: '700', color: '#475569'},
   cardInfo: {flex: 1},
   studentName: {fontSize: 15, fontWeight: '700', marginBottom: 2},

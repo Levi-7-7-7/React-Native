@@ -36,8 +36,8 @@ import {
   Animated,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import axiosInstance from '../api/axiosInstance';
-import tutorAxios from '../api/tutorAxios';
+import axiosInstance, {invalidateStudentTokenCache} from '../api/axiosInstance';
+import tutorAxios, {invalidateTutorTokenCache} from '../api/tutorAxios';
 import {useAuth} from '../context/AuthContext';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
@@ -108,6 +108,7 @@ export default function UnifiedLoginScreen({navigation}: any) {
           ['tutorName', res.data.tutor?.name || 'Tutor'],
           ['role', 'tutor'],
         ]);
+        invalidateTutorTokenCache(); // flush cache so next request picks up the new token
         setUser({name: res.data.tutor?.name || 'Tutor'});
         setRole('tutor');
       } else {
@@ -122,6 +123,7 @@ export default function UnifiedLoginScreen({navigation}: any) {
           ['role', 'student'],
           ['userName', res.data.student?.name || 'Student'],
         ]);
+        invalidateStudentTokenCache(); // flush cache so next request picks up the new token
         setUser(res.data.student);
         setRole('student');
       }

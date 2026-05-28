@@ -18,7 +18,7 @@ import {
   Platform,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import axiosInstance from '../api/axiosInstance';
+import axiosInstance, {invalidateStudentTokenCache} from '../api/axiosInstance';
 import {useAuth} from '../context/AuthContext';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
@@ -45,6 +45,7 @@ export default function LoginScreen({navigation}: any) {
       await AsyncStorage.setItem('token', res.data.token);
       await AsyncStorage.setItem('role', 'student');
       await AsyncStorage.setItem('userName', res.data.student?.name || 'Student');
+      invalidateStudentTokenCache(); // flush cache so next request picks up the new token
       setUser(res.data.student);
       setRole('student');
     } catch (err: any) {

@@ -20,9 +20,7 @@ import {calcCappedPoints, passThreshold} from '../utils/calcPoints';
 import {useTheme} from '../theme';
 import {tabEmitter} from '../utils/tabEvents';
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
-
-/** Build the full URL for a profile photo path returned by the backend. */
+// Build full URL for a profile photo path returned by the backend
 function photoUrl(path: string | null | undefined): string | null {
   if (!path) {return null;}
   if (path.startsWith('http')) {return path;}
@@ -30,7 +28,45 @@ function photoUrl(path: string | null | undefined): string | null {
   return `${origin}${path}`;
 }
 
-// ─── component ───────────────────────────────────────────────────────────────
+// Memoized activity row to prevent unnecessary re-renders
+const ActivityRow = React.memo(({
+  cert,
+  isLast,
+  colors,
+  getActivityStatusStyle,
+}: {
+  cert: any;
+  isLast: boolean;
+  colors: any;
+  getActivityStatusStyle: (s: string) => {color: string};
+}) => (
+  <View
+    style={[
+      styles.activityRow,
+      {borderBottomColor: colors.borderLight},
+      isLast && {borderBottomWidth: 0},
+    ]}>
+    <View style={styles.activityLeft}>
+      <View style={[styles.activityDot, {backgroundColor: colors.primary}]} />
+      <View style={{flex: 1}}>
+        <Text numberOfLines={1} style={[styles.activityName, {color: colors.text}]}>
+          {cert.subcategory || cert.eventName || 'Certificate'}
+        </Text>
+        <View style={styles.dateRow}>
+          <MaterialCommunityIcons name="calendar-month-outline" size={14} color={colors.textMuted} />
+          <Text style={[styles.activityDate, {color: colors.textMuted}]}>
+            {cert.createdAt ? new Date(cert.createdAt).toLocaleDateString() : '—'}
+          </Text>
+        </View>
+      </View>
+    </View>
+    <Text style={[styles.activityStatus, getActivityStatusStyle(cert.status)]}>
+      {cert.status?.toLowerCase() === 'approved'
+        ? `+${cert.pointsAwarded ?? 0} pts`
+        : cert.status}
+    </Text>
+  </View>
+));
 
 export default function DashboardScreen() {
   const {user, setUser, logout} = useAuth();
@@ -42,7 +78,7 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // 3-dot menu state
+  // 3-dot menu
   const [menuVisible, setMenuVisible] = useState(false);
   const menuAnim = useRef(new RNAnimated.Value(0)).current;
   const menuBtnRef = useRef<TouchableOpacity>(null);
@@ -69,48 +105,53 @@ export default function DashboardScreen() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logout]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-  const onRefresh = () => {
+  const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchData();
-  };
+  }, [fetchData]);
 
   const cappedTotal = useMemo(() => {
     if (!certificates.length || !categories.length) {return 0;}
     const approved = certificates.filter(c => c.status?.toLowerCase() === 'approved');
     return calcCappedPoints(approved, categories, user?.isLateralEntry ?? false);
-  }, [certificates, categories, user]);
+  }, [certificates, categories, user?.isLateralEntry]);
 
   const PASS_POINTS = passThreshold(user?.isLateralEntry);
   const hasPassed = cappedTotal >= PASS_POINTS;
   const progressPct = Math.min(cappedTotal / PASS_POINTS, 1);
 
   const userName = user?.name || 'Student';
-  const initials = userName
-    .split(' ')
-    .map((n: string) => n[0])
-    .join('')
-    .toUpperCase()
-    .slice(0, 2);
-  const currentPhoto = photoUrl(user?.profilePhoto);
+  const initials = useMemo(
+    () =>
+      userName
+        .split(' ')
+        .map((n: string) => n[0])
+        .join('')
+        .toUpperCase()
+        .slice(0, 2),
+    [userName],
+  );
+  const currentPhoto = useMemo(() => photoUrl(user?.profilePhoto), [user?.profilePhoto]);
 
-  const recentActivities = certificates.slice(0, 5);
+  // Only keep 5 items — avoids rendering the full list
+  const recentActivities = useMemo(() => certificates.slice(0, 5), [certificates]);
 
-  const getActivityStatusStyle = (status: string) => {
-    switch (status?.toLowerCase()) {
-      case 'approved': return {color: colors.badgeApprovedText};
-      case 'pending':  return {color: colors.badgePendingText};
-      case 'rejected': return {color: colors.badgeRejectedText};
-      default:         return {color: colors.textMuted};
-    }
-  };
+  const getActivityStatusStyle = useCallback(
+    (status: string) => {
+      switch (status?.toLowerCase()) {
+        case 'approved': return {color: colors.badgeApprovedText};
+        case 'pending':  return {color: colors.badgePendingText};
+        case 'rejected': return {color: colors.badgeRejectedText};
+        default:         return {color: colors.textMuted};
+      }
+    },
+    [colors],
+  );
 
   // ── 3-dot menu helpers ────────────────────────────────────────────────────
-
-  const openMenu = () => {
+  const openMenu = useCallback(() => {
     menuBtnRef.current?.measure((_fx, _fy, _w, _h, px, py) => {
       setMenuPos({top: py + _h + 4, right: 16});
     });
@@ -121,9 +162,9 @@ export default function DashboardScreen() {
       tension: 220,
       friction: 18,
     }).start();
-  };
+  }, [menuAnim]);
 
-  const closeMenu = (cb?: () => void) => {
+  const closeMenu = useCallback((cb?: () => void) => {
     RNAnimated.timing(menuAnim, {
       toValue: 0,
       duration: 150,
@@ -132,13 +173,12 @@ export default function DashboardScreen() {
       setMenuVisible(false);
       cb?.();
     });
-  };
+  }, [menuAnim]);
 
-  const goToProfile = () => closeMenu(() => navigation.navigate('Profile'));
-  const handleLogout = () => closeMenu(() => logout());
+  const goToProfile = useCallback(() => closeMenu(() => navigation.navigate('Profile')), [closeMenu, navigation]);
+  const handleLogout = useCallback(() => closeMenu(() => logout()), [closeMenu, logout]);
 
   const menuScale = menuAnim.interpolate({inputRange: [0, 1], outputRange: [0.85, 1]});
-  const menuOpacity = menuAnim;
 
   return (
     <View style={[styles.safeArea, {backgroundColor: colors.bg}]}>
@@ -158,30 +198,25 @@ export default function DashboardScreen() {
 
         {/* ── Header ── */}
         <View style={styles.header}>
-          {/* Avatar + greeting */}
           <View style={styles.avatarGroup}>
             {currentPhoto ? (
               <Image
                 source={{uri: currentPhoto}}
                 style={[styles.avatar, styles.avatarImage]}
+                // Cache image aggressively
+                fadeDuration={0}
               />
             ) : (
               <View style={[styles.avatar, {backgroundColor: colors.primary}]}>
                 <Text style={styles.avatarText}>{initials}</Text>
               </View>
             )}
-
             <View>
-              <Text style={[styles.helloText, {color: colors.text}]}>
-                Hello, {userName}
-              </Text>
-              <Text style={[styles.welcomeText, {color: colors.textMuted}]}>
-                Welcome back!
-              </Text>
+              <Text style={[styles.helloText, {color: colors.text}]}>Hello, {userName}</Text>
+              <Text style={[styles.welcomeText, {color: colors.textMuted}]}>Welcome back!</Text>
             </View>
           </View>
 
-          {/* 3-dot menu button */}
           <TouchableOpacity
             ref={menuBtnRef}
             style={[styles.menuBtn, {backgroundColor: colors.card}]}
@@ -195,17 +230,13 @@ export default function DashboardScreen() {
         {/* Points Card */}
         <View style={[styles.pointsCard, {backgroundColor: colors.cardBlue}]}>
           <View>
-            <Text style={[styles.pointsLabel, {color: colors.pointsLabel}]}>
-              Activity Points
-            </Text>
+            <Text style={[styles.pointsLabel, {color: colors.pointsLabel}]}>Activity Points</Text>
             {loading ? (
               <ActivityIndicator color="#ffffff" style={{marginTop: 10}} />
             ) : (
               <Text style={styles.pointsValue}>{cappedTotal}</Text>
             )}
-            <Text style={[styles.pointsOf, {color: colors.pointsOf}]}>
-              of {PASS_POINTS} required
-            </Text>
+            <Text style={[styles.pointsOf, {color: colors.pointsOf}]}>of {PASS_POINTS} required</Text>
           </View>
           <MaterialCommunityIcons name="trophy-outline" size={48} color={colors.trophyIcon} />
         </View>
@@ -255,33 +286,13 @@ export default function DashboardScreen() {
             </Text>
           ) : (
             recentActivities.map((cert, idx) => (
-              <View
+              <ActivityRow
                 key={cert._id}
-                style={[
-                  styles.activityRow,
-                  {borderBottomColor: colors.borderLight},
-                  idx === recentActivities.length - 1 && {borderBottomWidth: 0},
-                ]}>
-                <View style={styles.activityLeft}>
-                  <View style={[styles.activityDot, {backgroundColor: colors.primary}]} />
-                  <View style={{flex: 1}}>
-                    <Text numberOfLines={1} style={[styles.activityName, {color: colors.text}]}>
-                      {cert.subcategory || cert.eventName || 'Certificate'}
-                    </Text>
-                    <View style={styles.dateRow}>
-                      <MaterialCommunityIcons name="calendar-month-outline" size={14} color={colors.textMuted} />
-                      <Text style={[styles.activityDate, {color: colors.textMuted}]}>
-                        {cert.createdAt ? new Date(cert.createdAt).toLocaleDateString() : '—'}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-                <Text style={[styles.activityStatus, getActivityStatusStyle(cert.status)]}>
-                  {cert.status?.toLowerCase() === 'approved'
-                    ? `+${cert.pointsAwarded ?? 0} pts`
-                    : cert.status}
-                </Text>
-              </View>
+                cert={cert}
+                isLast={idx === recentActivities.length - 1}
+                colors={colors}
+                getActivityStatusStyle={getActivityStatusStyle}
+              />
             ))
           )}
 
@@ -298,16 +309,14 @@ export default function DashboardScreen() {
         </View>
       </ScrollView>
 
-      {/* ── 3-dot dropdown menu (WhatsApp-style) ── */}
+      {/* ── 3-dot dropdown menu ── */}
       {menuVisible && (
         <Modal transparent animationType="none" onRequestClose={() => closeMenu()}>
-          {/* Dismiss tap area */}
           <TouchableOpacity
             style={StyleSheet.absoluteFill}
             activeOpacity={1}
             onPress={() => closeMenu()}
           />
-
           <RNAnimated.View
             style={[
               styles.dropdownMenu,
@@ -315,7 +324,7 @@ export default function DashboardScreen() {
                 backgroundColor: colors.card,
                 top: menuPos.top,
                 right: menuPos.right,
-                opacity: menuOpacity,
+                opacity: menuAnim,
                 transform: [{scale: menuScale}],
                 shadowColor: '#000',
                 shadowOffset: {width: 0, height: 4},
@@ -324,7 +333,6 @@ export default function DashboardScreen() {
                 elevation: 12,
               },
             ]}>
-            {/* Profile */}
             <TouchableOpacity
               style={[styles.menuItem, {borderBottomColor: colors.borderLight}]}
               onPress={goToProfile}
@@ -332,12 +340,7 @@ export default function DashboardScreen() {
               <MaterialCommunityIcons name="account-circle-outline" size={20} color={colors.primary} />
               <Text style={[styles.menuItemText, {color: colors.text}]}>Profile</Text>
             </TouchableOpacity>
-
-            {/* Logout */}
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={handleLogout}
-              activeOpacity={0.75}>
+            <TouchableOpacity style={styles.menuItem} onPress={handleLogout} activeOpacity={0.75}>
               <MaterialCommunityIcons name="logout" size={20} color={colors.dangerText} />
               <Text style={[styles.menuItemText, {color: colors.dangerText}]}>Log Out</Text>
             </TouchableOpacity>
@@ -348,111 +351,39 @@ export default function DashboardScreen() {
   );
 }
 
-// ─── styles ───────────────────────────────────────────────────────────────────
-
 const styles = StyleSheet.create({
   safeArea: {flex: 1},
   container: {flex: 1},
   content: {padding: 20, paddingBottom: 100},
-
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  avatarGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  avatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarImage: {
-    // Image-specific overrides — alignment props from `avatar` are ignored by Image
-  },
+  header: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20},
+  avatarGroup: {flexDirection: 'row', alignItems: 'center', gap: 12},
+  avatar: {width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center'},
+  avatarImage: {},
   avatarText: {color: '#fff', fontWeight: '800', fontSize: 16},
-
   helloText: {fontSize: 17, fontWeight: '700'},
   welcomeText: {fontSize: 13, marginTop: 1},
-
-  menuBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  // ── dropdown ──────────────────────────────────────────────────────────────
-  dropdownMenu: {
-    position: 'absolute',
-    borderRadius: 14,
-    minWidth: 170,
-    overflow: 'hidden',
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 18,
-    paddingVertical: 15,
-    borderBottomWidth: 1,
-  },
+  menuBtn: {width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center'},
+  dropdownMenu: {position: 'absolute', borderRadius: 14, minWidth: 170, overflow: 'hidden'},
+  menuItem: {flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 18, paddingVertical: 15, borderBottomWidth: 1},
   menuItemText: {fontSize: 15, fontWeight: '600'},
-
-  // ── points card ───────────────────────────────────────────────────────────
-  pointsCard: {
-    borderRadius: 20,
-    padding: 22,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    shadowColor: '#1e3a8a',
-    shadowOffset: {width: 0, height: 4},
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 6,
-  },
+  pointsCard: {borderRadius: 20, padding: 22, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', shadowColor: '#1e3a8a', shadowOffset: {width: 0, height: 4}, shadowOpacity: 0.3, shadowRadius: 10, elevation: 6},
   pointsLabel: {fontSize: 13, fontWeight: '500', marginBottom: 4},
   pointsValue: {fontSize: 52, fontWeight: '800', color: '#fff'},
   pointsOf: {fontSize: 13, marginTop: 2},
-
-  progressBg: {
-    height: 6, borderRadius: 3, marginTop: 12, marginBottom: 14, overflow: 'hidden',
-  },
+  progressBg: {height: 6, borderRadius: 3, marginTop: 12, marginBottom: 14, overflow: 'hidden'},
   progressFill: {height: 6, borderRadius: 3},
-
-  // ── pass banner ───────────────────────────────────────────────────────────
-  passBanner: {
-    borderRadius: 14, padding: 14, marginBottom: 20,
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-  },
+  passBanner: {borderRadius: 14, padding: 14, marginBottom: 20, flexDirection: 'row', alignItems: 'center', gap: 10},
   passBannerText: {flex: 1},
   passBannerTitle: {fontSize: 14, fontWeight: '800'},
   passBannerSub: {fontSize: 12, marginTop: 2},
   passBadge: {backgroundColor: '#16a34a', borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5},
   passBadgeText: {color: '#fff', fontWeight: '800', fontSize: 11},
-
-  // ── activities ────────────────────────────────────────────────────────────
   sectionTitle: {fontSize: 17, fontWeight: '700', marginBottom: 12},
-  activitiesCard: {
-    borderRadius: 16, padding: 16,
-    shadowColor: '#000', shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.06, shadowRadius: 8, elevation: 3,
-  },
+  activitiesCard: {borderRadius: 16, padding: 16, shadowColor: '#000', shadowOffset: {width: 0, height: 2}, shadowOpacity: 0.06, shadowRadius: 8, elevation: 3},
   skeletonRow: {flexDirection: 'row', alignItems: 'center', marginVertical: 8, gap: 12},
   skeletonCircle: {width: 32, height: 32, borderRadius: 16},
   skeletonLine: {flex: 1, height: 14, borderRadius: 7},
-  activityRow: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1,
-  },
+  activityRow: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1},
   activityLeft: {flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1},
   activityDot: {width: 10, height: 10, borderRadius: 5},
   activityName: {fontSize: 14, fontWeight: '600'},

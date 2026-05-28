@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import axiosInstance from '../api/axiosInstance';
+import axiosInstance, {invalidateStudentTokenCache} from '../api/axiosInstance';
 import {useAuth} from '../context/AuthContext';
 
 export default function VerifyOtpScreen({route}: any) {
@@ -61,6 +61,7 @@ export default function VerifyOtpScreen({route}: any) {
       });
       await AsyncStorage.setItem('token', res.data.token);
       await AsyncStorage.setItem('role', 'student');
+      invalidateStudentTokenCache(); // flush cache so next request picks up the new token
       setRole('student');
       const me = await axiosInstance.get('/students/me');
       setUser(me.data);

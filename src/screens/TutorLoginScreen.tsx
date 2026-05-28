@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import tutorAxios from '../api/tutorAxios';
+import tutorAxios, {invalidateTutorTokenCache} from '../api/tutorAxios';
 import {useAuth} from '../context/AuthContext';
 
 export default function TutorLoginScreen({navigation}: any) {
@@ -38,6 +38,7 @@ export default function TutorLoginScreen({navigation}: any) {
       await AsyncStorage.setItem('tutorToken', res.data.token);
       await AsyncStorage.setItem('tutorName', res.data.tutor?.name || 'Tutor');
       await AsyncStorage.setItem('role', 'tutor');
+      invalidateTutorTokenCache(); // flush cache so next request picks up the new token
       setRole('tutor');
     } catch (err: any) {
       Alert.alert(

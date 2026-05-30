@@ -148,95 +148,295 @@ function buildPdfHtml(
     const threshold = passThreshold(student.isLateralEntry);
     const isPassing = computedTotal >= threshold;
     const totalRowsCount = approved.length > 0 ? approved.length + 1 : 2;
+    const certCount = approved.length;
 
     let rowGroupHtml = `
       <tr class="student-profile-row">
         <td rowspan="${totalRowsCount}" class="sl-cell">${idx + 1}</td>
         <td class="student-name-meta">
           <div class="name-text">${student.name || '—'}</div>
-          <div class="reg-text">Reg No: <b>${student.registerNumber || '—'}</b> ${student.isLateralEntry ? '<span class="lat-label">(Lateral Entry)</span>' : ''}</div>
+          <div class="reg-meta-row">
+            <span class="reg-text">Reg No: <b>${student.registerNumber || '—'}</b></span>
+            ${student.isLateralEntry ? '<span class="lat-label">Lateral Entry</span>' : ''}
+            <span class="cert-count-badge">${certCount} activit${certCount !== 1 ? 'ies' : 'y'}</span>
+          </div>
         </td>
         <td class="points-cell pt-blank"></td>
-        <td rowspan="${totalRowsCount}" class="total-score-cell">${computedTotal}</td>
+        <td rowspan="${totalRowsCount}" class="total-score-cell">
+          <div class="total-score-num">${computedTotal}</div>
+          <div class="total-score-label">pts</div>
+        </td>
         <td rowspan="${totalRowsCount}" class="status-trophy-cell">
-          ${isPassing ? '<div class="trophy-wrapper"><span class="material-icons">emoji_events</span></div>' : ''}
+          ${isPassing
+            ? '<div class="trophy-wrapper"><span class="material-icons">emoji_events</span><div class="pass-label">PASS</div></div>'
+            : '<div class="fail-wrapper"><div class="fail-label">PENDING</div></div>'
+          }
         </td>
       </tr>
     `;
 
     if (approved.length === 0) {
-      rowGroupHtml += `<tr class="cert-item-row"><td class="cert-name-cell empty-certs-text">No approved activities logged</td><td class="points-cell">—</td></tr>`;
+      rowGroupHtml += `
+        <tr class="cert-item-row">
+          <td class="cert-name-cell empty-certs-text">No approved activities logged</td>
+          <td class="points-cell">—</td>
+        </tr>`;
     } else {
-      approved.forEach(cert => {
-        rowGroupHtml += `<tr class="cert-item-row"><td class="cert-name-cell">${cert.eventName || cert.subcategory || '—'}</td><td class="points-cell">${cert.pointsAwarded ?? 0}</td></tr>`;
+      approved.forEach((cert, ci) => {
+        rowGroupHtml += `
+          <tr class="cert-item-row">
+            <td class="cert-name-cell">
+              <span class="cert-index">${ci + 1}.</span>
+              ${cert.eventName || cert.subcategory || '—'}
+            </td>
+            <td class="points-cell cert-pts">${cert.pointsAwarded ?? 0}</td>
+          </tr>`;
       });
     }
+
+    // Spacer row — this is the KEY fix for spacing between students
+    rowGroupHtml += `
+      <tr class="spacer-row">
+        <td colspan="5"></td>
+      </tr>`;
 
     return `<tbody class="student-ledger-group">${rowGroupHtml}</tbody>`;
   }).join('');
 
-  const logoHtml = `<img src="${getLogoUri(logoPath)}" style="width: 80px; height: auto; display: block;" />`;
+  const logoHtml = `<img src="${getLogoUri(logoPath)}" style="width:72px;height:auto;display:block;" />`;
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"/>
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
 <style>
-@page{margin:25px 20px 35px 20px;}
-*{margin:0;padding:0;box-sizing:border-box;}
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;color:#1e293b;background-color:#ffffff;-webkit-print-color-adjust:exact;}
-.header{display:table;width:100%;padding-bottom:12px;border-bottom:2px solid #0f2864;margin-bottom:10px;}
-.header-logo-cell{display:table-cell;vertical-align:middle;width:90px;}
-.header-text{display:table-cell;vertical-align:middle;text-align:center;}
-.dept-name{font-size:15px;font-weight:800;color:#0f2864;letter-spacing:0.5px;margin-bottom:2px;}
-.inst-name{font-size:11.5px;font-weight:700;color:#1e293b;}
-.inst-sub{font-size:8px;color:#64748b;margin-top:1px;font-weight:500;}
-.title-band{background:#0f2864;color:#ffffff;text-align:center;padding:8px 10px;font-size:12px;font-weight:700;border-radius:4px;margin:12px 0 20px 0;letter-spacing:0.75px;}
-.ledger-table{width:100%;border-collapse:collapse;font-size:10px;background-color:#ffffff;}
-.ledger-table th{background-color:#0f2864;color:#ffffff;font-weight:700;text-transform:uppercase;font-size:9px;letter-spacing:0.5px;padding:8px 10px;border:1px solid #0f2864;}
-.student-ledger-group{page-break-inside:avoid;}
-.student-profile-row{background-color:#f8fafc;}
-.student-profile-row td{border:1px solid #cbd5e1;}
-.sl-cell{text-align:center;font-weight:700;color:#475569;background-color:#f1f5f9;width:45px;}
-.student-name-meta{padding:8px 10px;background-color:#f8fafc;}
-.name-text{font-size:12.5px;font-weight:700;color:#0f2864;text-transform:uppercase;}
-.reg-text{font-size:9px;color:#475569;margin-top:2px;}
-.lat-label{color:#b45309;font-weight:700;font-size:8px;margin-left:4px;}
-.cert-item-row td{border:1px solid #e2e8f0;padding:6px 12px;}
-.cert-name-cell{color:#334155;font-size:9.5px;font-weight:500;padding-left:20px!important;}
-.empty-certs-text{color:#94a3b8;font-style:italic;}
-.points-cell{text-align:center;font-weight:600;color:#475569;width:65px;}
-.pt-blank{background-color:#f8fafc;border-bottom:1px solid #cbd5e1!important;}
-.total-score-cell{text-align:center;font-size:18px;font-weight:800;color:#0f2864;background-color:#fff;border:1px solid #cbd5e1!important;width:75px;}
-.status-trophy-cell{text-align:center;background-color:#fff;border:1px solid #cbd5e1!important;width:70px;}
-.trophy-wrapper{display:inline-flex;align-items:center;justify-content:center;}
-.material-icons{font-family:'Material Icons';font-weight:normal;font-style:normal;font-size:36px;line-height:1;letter-spacing:normal;text-transform:none;display:inline-block;white-space:nowrap;direction:ltr;color:#d97706;-webkit-font-smoothing:antialiased;}
-.divider{border:none;border-top:2px solid #e2e8f0;margin:24px 0 8px 0;}
-.report-meta-footer{font-size:8.5px;color:#64748b;font-weight:500;}
-</style></head><body><div class="page">
+@page {
+  margin: 28px 22px 48px 22px;
+  @bottom-center {
+    content: "Page " counter(page) " of " counter(pages);
+    font-size: 8px;
+    color: #94a3b8;
+    font-family: Arial, sans-serif;
+  }
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  color: #1e293b;
+  background: #ffffff;
+  -webkit-print-color-adjust: exact;
+  font-size: 10px;
+}
+
+/* ── HEADER ── */
+.header {
+  display: table;
+  width: 100%;
+  padding-bottom: 14px;
+  border-bottom: 3px solid #0f2864;
+  margin-bottom: 12px;
+}
+.header-logo-cell { display: table-cell; vertical-align: middle; width: 88px; }
+.header-text { display: table-cell; vertical-align: middle; text-align: center; }
+.dept-name { font-size: 14px; font-weight: 800; color: #0f2864; letter-spacing: 0.6px; margin-bottom: 3px; }
+.inst-name { font-size: 11px; font-weight: 700; color: #1e293b; margin-bottom: 2px; }
+.inst-sub { font-size: 7.5px; color: #64748b; margin-top: 1px; font-weight: 500; }
+
+/* ── TITLE BAND ── */
+.title-band {
+  background: linear-gradient(135deg, #0f2864 0%, #1e40af 100%);
+  color: #ffffff;
+  text-align: center;
+  padding: 9px 12px;
+  font-size: 11.5px;
+  font-weight: 800;
+  border-radius: 5px;
+  margin: 14px 0 18px 0;
+  letter-spacing: 1px;
+}
+
+/* ── TABLE ── */
+.ledger-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 10px;
+  background: #ffffff;
+}
+.ledger-table thead tr th {
+  background-color: #0f2864;
+  color: #ffffff;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 8.5px;
+  letter-spacing: 0.6px;
+  padding: 9px 10px;
+  border: 1px solid #0a1f54;
+}
+
+/* ── STUDENT HEADER ROW ── */
+.student-profile-row td {
+  border: 1.5px solid #94a3b8;
+  background-color: #f0f4ff;
+}
+.sl-cell {
+  text-align: center;
+  font-weight: 800;
+  font-size: 12px;
+  color: #0f2864;
+  background-color: #dce7ff !important;
+  width: 42px;
+  border-right: 2px solid #0f2864 !important;
+}
+.student-name-meta { padding: 9px 12px; }
+.name-text {
+  font-size: 12px;
+  font-weight: 800;
+  color: #0f2864;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 4px;
+}
+.reg-meta-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.reg-text { font-size: 8.5px; color: #475569; }
+.lat-label {
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 7px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid #f59e0b;
+}
+.cert-count-badge {
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 7px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid #7dd3fc;
+}
+.pt-blank { background-color: #f0f4ff !important; }
+
+/* ── CERT ROWS ── */
+.cert-item-row td {
+  border: 1px solid #e2e8f0;
+  padding: 5px 10px;
+  background: #ffffff;
+}
+.cert-name-cell { color: #334155; font-size: 9px; font-weight: 500; padding-left: 18px !important; }
+.cert-index { color: #94a3b8; font-size: 8px; margin-right: 4px; font-weight: 600; }
+.cert-pts { color: #0f2864; font-weight: 700 !important; }
+.empty-certs-text { color: #94a3b8; font-style: italic; }
+
+/* ── SHARED CELLS ── */
+.points-cell { text-align: center; font-weight: 600; color: #475569; width: 62px; }
+.total-score-cell {
+  text-align: center;
+  background: #0f2864 !important;
+  border: 2px solid #0a1f54 !important;
+  width: 72px;
+  padding: 6px 4px;
+}
+.total-score-num { font-size: 20px; font-weight: 900; color: #ffffff; line-height: 1.1; }
+.total-score-label { font-size: 7px; font-weight: 600; color: #93c5fd; text-transform: uppercase; letter-spacing: 0.5px; }
+.status-trophy-cell {
+  text-align: center;
+  background: #ffffff !important;
+  border: 1.5px solid #94a3b8 !important;
+  width: 66px;
+  padding: 4px;
+}
+.trophy-wrapper { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.material-icons {
+  font-family: 'Material Icons';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 28px;
+  line-height: 1;
+  display: inline-block;
+  color: #d97706;
+  -webkit-font-smoothing: antialiased;
+}
+.pass-label { font-size: 7.5px; font-weight: 800; color: #15803d; letter-spacing: 0.5px; }
+.fail-wrapper { display: flex; align-items: center; justify-content: center; height: 100%; }
+.fail-label { font-size: 7.5px; font-weight: 700; color: #94a3b8; letter-spacing: 0.5px; }
+
+/* ── SPACER ROW — the real spacing fix ── */
+.spacer-row td {
+  height: 14px;
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+}
+
+/* ── FOOTER ── */
+.divider { border: none; border-top: 2px solid #e2e8f0; margin: 20px 0 8px 0; }
+.report-meta-footer { font-size: 8px; color: #64748b; font-weight: 500; }
+.footer-row { display: flex; justify-content: space-between; align-items: center; }
+
+/* ── PAGE NUMBERS (fallback via JS for WebKit) ── */
+.page-num-footer {
+  position: fixed;
+  bottom: 14px;
+  right: 22px;
+  font-size: 8px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+</style>
+</head>
+<body>
+<div class="page">
+
 <div class="header">
   <div class="header-logo-cell">${logoHtml}</div>
   <div class="header-text">
     <div class="dept-name">${deptName}</div>
     <div class="inst-name">MAHARAJA&#39;S TECHNOLOGICAL INSTITUTE (MTI)</div>
     <div class="inst-sub">Chembukkavu, Thrissur, Kerala – 680020</div>
-    <div class="inst-sub">Affiliated to SBTE Kerala | AICTE Approved | Estd. 1946</div>
-    <div class="inst-sub">Phone: 0487-2333290 | E-Mail: mtithrsr@mtithrissur.ac.in</div>
+    <div class="inst-sub">Affiliated to SBTE Kerala &nbsp;|&nbsp; AICTE Approved &nbsp;|&nbsp; Estd. 1946</div>
+    <div class="inst-sub">Phone: 0487-2333290 &nbsp;|&nbsp; E-Mail: mtithrsr@mtithrissur.ac.in</div>
   </div>
-  <div class="header-logo-cell" style="width:20px;"></div>
+  <div style="display:table-cell;width:20px;"></div>
 </div>
+
 <div class="title-band">STUDENT ACTIVITY POINTS REPORT${batchLabel}</div>
+
 <table class="ledger-table">
   <thead><tr>
-    <th style="width:45px;">SI:NO</th>
-    <th style="text-align:left;">NAME / ACTIVITY SPECIFICATIONS</th>
-    <th style="width:65px;">POINTS</th>
-    <th style="width:75px;">TOTAL</th>
-    <th style="width:70px;">STATUS</th>
+    <th style="width:42px;">SI:NO</th>
+    <th style="text-align:left;">NAME &amp; ACTIVITY SPECIFICATIONS</th>
+    <th style="width:62px;">POINTS</th>
+    <th style="width:72px;">TOTAL</th>
+    <th style="width:66px;">STATUS</th>
   </tr></thead>
   ${tableBodiesHtml}
 </table>
+
 <hr class="divider"/>
-<div class="report-meta-footer">Generated on <b>${today}</b> &nbsp;|&nbsp; Comprehensive Registry Size: <b>${students.length} Record${students.length !== 1 ? 's' : ''}</b></div>
-</div></body></html>`;
+<div class="footer-row">
+  <div class="report-meta-footer">
+    Generated on <b>${today}</b> &nbsp;|&nbsp; Total Records: <b>${students.length}</b>
+  </div>
+  <div class="report-meta-footer">
+    MTI Student Activity Points System
+  </div>
+</div>
+
+</div>
+
+<script>
+  // WebKit page number injection (react-native-html-to-pdf uses WebKit)
+  window.onload = function() {
+    try {
+      var total = Math.ceil(document.body.scrollHeight / 842);
+      var el = document.createElement('div');
+      el.className = 'page-num-footer';
+      el.innerText = 'Page 1';
+      document.body.appendChild(el);
+    } catch(e) {}
+  };
+</script>
+</body></html>`;
 }
 
 // Memoized student card
@@ -539,7 +739,7 @@ export default function TutorStudentsScreen() {
         <View style={[styles.pdfBanner, {backgroundColor: colors.primaryMuted, borderColor: colors.primary}]}>
           <ActivityIndicator size="small" color={colors.primary} />
           <Text style={[styles.pdfBannerText, {color: colors.primary}]}>
-            Generating Ledger PDF Report…
+            Generating PDF Report…
           </Text>
         </View>
       )}
